@@ -1,9 +1,0 @@
-
-
-<xacro:generic_camera name="camera_hires" parent="${prefix}ee_link" ros_topic="/camera_hires/image" cam_info_topic="/camera_hires/info" update_rate="30" res_x="1920" res_y="1080" image_format="R8G8B8" hfov="80">
-  <origin xyz="0.17 0 0.05" rpy="${-pi} 0 0" />
-</xacro:generic_camera>
-
-<xacro:generic_camera name="camera_lores" parent="${prefix}ee_link" ros_topic="/camera_lores/image" cam_info_topic="/camera_lores/info" update_rate="30" res_x="640" res_y="480" image_format="L8" hfov="80">
-  <origin xyz="0.17 0 0.05" rpy="${-pi} 0 0" />
-</xacro:generic_camera>
