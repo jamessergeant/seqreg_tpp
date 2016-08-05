@@ -1,3 +1,8 @@
+/*
+Copyright 2016 Australian Centre for Robotic Vision
+Author: James Sergeant james.sergeant@qut.edu.au
+*/
+
 // REMEMBER to set ROS_MASTER_URI and ROS_IP, also source
 // harvey_ws/src/.external on UR5
 // roslaunch ur5_moveit_config ur5_moveit_planning_execution.launch
@@ -6,45 +11,46 @@
 // roslaunch ur5_moveit_config moveit_rviz.launch config:=true limited:=true
 // rosrun pixl pixl
 
-#include <cv_bridge/cv_bridge.h>
-#include <ros/ros.h>
-#include <tf/transform_listener.h>
-#include <visualization_msgs/Marker.h>
-#include "tf/tf.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
+#include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
+#include <moveit/move_group_interface/move_group.h>
+#include <ros/ros.h>
 #include <sensor_msgs/Image.h>
-#include <sensor_msgs/image_encodings.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/String.h>
-
+#include <tf/transform_listener.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
-#include <Eigen/Dense>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include <chrono>
+#include <cmath>
+#include <cstring>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <map>
+#include <random>
 #include <string>
 #include <vector>
 
-#include <image_transport/image_transport.h>
-#include <image_transport/subscriber_filter.h>
+#include "tf/tf.h"
 
-#include <moveit/move_group_interface/move_group.h>
-#include <moveit/planning_scene/planning_scene.h>
-#include <moveit/planning_scene_interface/planning_scene_interface.h>
-#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
-#include <moveit/trajectory_processing/iterative_time_parameterization.h>
-#include <moveit_msgs/ExecuteKnownTrajectory.h>
+#define _USE_MATH_DEFINES
 
-#include <chrono>
-#include <iostream>
-#include <random>
+#define HALF_HFOV 27  // half horizontal FOV of the camera
+#define HALF_VFOV 18  // half vertical FOV of the camera
+#define CAMERA_OFFSET \
+    0.10  // additional offset for camera, not included in model
+// #define IM_WIDTH 400          // width of image used for SeqSLAM
+// registration
 
 static const std::string HI_RES_WINDOW = "High Resolution Camera";
 static const std::string LO_RES_WINDOW =
@@ -52,56 +58,72 @@ static const std::string LO_RES_WINDOW =
 static const std::string REGION_WINDOW = "Selected Region Of Interest";
 static const std::string FEATURE_WINDOW = "Feature Region";
 
-#define _USE_MATH_DEFINES
-#include <stdlib.h>
-#include <cmath>
-#include <cstring>
-#include <functional>
-#include <map>
-#include "/opt/ros/indigo/include/gazebo_msgs/DeleteModel.h"
-#define HALF_HFOV 27  // half horizontal FOV of the camera
-#define HALF_VFOV 18  // half vertical FOV of the camera
-#define CAMERA_OFFSET \
-    0.10  // additional offset for camera, not included in model
-// #define IM_WIDTH 400          // width of image used for SeqSLAM registration
-
 class pixl {
     ros::NodeHandle nh_;
     image_transport::ImageTransport it_;
+    tf::TransformListener tf_listener;
+
     ros::Subscriber imageHRSub;
     ros::Subscriber imageLRSub;
     ros::Subscriber matlabSub;
     ros::Subscriber servoSub;
+
     image_transport::Publisher watsonPub;
     image_transport::Publisher pixlPub;
     image_transport::Publisher servoPub;
+
     ros::Publisher scalePub;
     ros::Publisher recordPub;
+
     sensor_msgs::ImagePtr watsonMsg;
     sensor_msgs::ImagePtr pixlMsg;
     sensor_msgs::ImagePtr servoMsg;
     sensor_msgs::Image points;
+
     std_msgs::Float32MultiArray scale;
+    std_msgs::String recordMsg;
 
     cv::Point pointA;
     cv::Point pointB;
     cv::Point featurePoint;
+
     std::ostringstream note;
+
+    std::ofstream result_file;
+
+    std::string menuSelect;
+    std::string operator_success;
+    std::string image_topic;
+    std::string robot_name;
+    std::string move_group_name;
 
     bool reset_pixl;
     bool reset_watson;
-    float Froi;
+    bool reg_complete;
+    bool reg_success;
+    bool servo_success;
+    bool servoing;
+    bool initialise;
+
     std::vector<moveit_msgs::CollisionObject> collision_objects;
-
     std::vector<geometry_msgs::Pose> waypoints;
+    std::vector<float> servo_data;
 
-    tf::TransformListener tf_listener;
+    float Froi;
     float watsonScale;
     float watsonScaleFromRef;
     float watsonScaleFromROI;
     float pixlScale;
     float pixlMult;
     float watsonMult;
+    float objectposz;
+    float objectposzInit;
+    float wait_time = 1.0;
+    float servo_scale;
+    float servo_rotation;
+    float servo_x;
+    float servo_y;
+
     cv::Mat color;
     cv::Mat grey;
     cv::Mat watson_initial_image;
@@ -118,28 +140,14 @@ class pixl {
     geometry_msgs::PoseStamped servo_pose;
 
     moveit::planning_interface::MoveGroup::Plan plan;
-    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
     moveit::planning_interface::MoveGroup move_group;
-    std::string menuSelect;
-    float objectposz;
-    float objectposzInit;
-    float wait_time;
-    std::vector<float> servo_data;
-    bool reg_complete;
-    bool reg_success;
-    float servo_scale;
-    float servo_rotation;
-    float servo_x;
-    float servo_y;
+
     int servo_attempts;
-    bool servo_success;
-    std::string operator_success;
-    std::ofstream result_file;
-    time_t timer;
     int time_id;
-    bool servoing;
-    bool initialise;
-    std_msgs::String recordMsg;
+
+    time_t timer;
+
+    XmlRpc::XmlRpcValue poses;
 
     // // servo thresholds - tight
     // float thresh[4] = {0.01,1,5,5};
@@ -148,17 +156,28 @@ class pixl {
     float thresh[4] = {0.03, 3, 15, 15};
 
    public:
-    pixl() : it_(nh_), move_group("left_arm") {
+    pixl() : it_(nh_), move_group("manipulator") {
         cv::namedWindow(HI_RES_WINDOW, cv::WINDOW_NORMAL);
         cv::namedWindow(LO_RES_WINDOW, cv::WINDOW_NORMAL);
+
+        // obtain parameters
+        nh_.param("/nasa/image_topic", image_topic,
+                  std::string("/usb_cam/image_raw"));
+        nh_.param("/nasa/robot", robot_name, std::string("baxter"));
+        nh_.param("/nasa/move_group", move_group_name,
+                  std::string("right_arm"));
+        nh_.param("/nasa/" + robot_name, poses);
+
+        // start Image Transports
         watsonPub = it_.advertise("/pixl/image_watson", 1);
         pixlPub = it_.advertise("/pixl/image_pixl", 1);
         servoPub = it_.advertise("/pixl/image_servo", 1);
+
+        // start Publishers
         scalePub = nh_.advertise<std_msgs::Float32MultiArray>("/pixl/scale", 1);
         recordPub = nh_.advertise<std_msgs::String>("/pixl/record", 1);
 
-        imageHRSub =
-            nh_.subscribe("/usb_cam/image_raw", 10, &pixl::callbackHR, this);
+        imageHRSub = nh_.subscribe(image_topic, 10, &pixl::callbackHR, this);
         matlabSub = nh_.subscribe("/pixl/matlab_result", 10,
                                   &pixl::matlabCallback, this);
         servoSub =
@@ -178,9 +197,6 @@ class pixl {
     }
 
     ~pixl() {
-        std::vector<std::string> object_names =
-            planning_scene_interface.getKnownObjectNames();
-        planning_scene_interface.removeCollisionObjects(object_names);
         cv::destroyWindow(HI_RES_WINDOW);
         cv::destroyWindow(LO_RES_WINDOW);
         cv::destroyWindow(REGION_WINDOW);
@@ -188,18 +204,13 @@ class pixl {
     }
 
     void start() {
-        std::string xInput;
-        std::string yInput;
-        std::string zInput;
-
-        wait_time = 1.0;
         cv::setMouseCallback(HI_RES_WINDOW, mouse_click, this);
         cv::setMouseCallback(LO_RES_WINDOW, pixl_click, this);
 
         reset_pixl = false;
         ros::Time time;
 
-        move_group.setPlannerId("RRTConnectkConfigDefault");
+        move_group.setPlannerId("RRTStarkConfigDefault");
         move_group.setPlanningTime(5);
         move_group.setMaxVelocityScalingFactor(0.25);
         move_group.setPoseReferenceFrame("world");
@@ -212,13 +223,6 @@ class pixl {
         while (ros::ok()) {
             if (initialise) {
                 new_pixl();
-
-                // try {
-                //   if(!moveTo(pixl_pose,2, wait_time)){throw
-                //   tf::TransformException("Pixl pose initial failed.");}
-                // } catch (tf::TransformException ex){
-                //   ROS_INFO_STREAM(ex.what());
-                // }
 
                 new_watson();
 
@@ -234,10 +238,7 @@ class pixl {
                 reset_pixl = false;
                 reset_watson = false;
                 initialise = false;
-
-            }
-
-            else if (reset_pixl) {
+            } else if (reset_pixl) {
                 reset_pixl = false;
                 try {
                     if (!moveTo(pixl_pose, 2, wait_time)) {
@@ -246,10 +247,7 @@ class pixl {
                 } catch (tf::TransformException ex) {
                     ROS_INFO_STREAM(ex.what());
                 }
-
-            }
-
-            else if (reset_watson) {
+            } else if (reset_watson) {
                 reset_watson = false;
                 try {
                     if (!moveTo(watson_pose, 2, wait_time)) {
@@ -259,11 +257,9 @@ class pixl {
                 } catch (tf::TransformException ex) {
                     ROS_INFO_STREAM(ex.what());
                 }
-
             } else {
             }
         }
-
     }  // End Start
 
     void new_pixl() {
@@ -326,50 +322,6 @@ class pixl {
         scalePub.publish(scale);
     }
 
-    // bool moveToNamed(std::string namedGoal, int Attempts, float timeout){
-    //
-    //   bool ret = false;
-    //   bool success = false;
-    //
-    //   while(Attempts > 0){
-    //
-    //     move_group.setStartStateToCurrentState();
-    //     move_group.setNamedTarget(namedGoal);
-    //
-    //     success = move_group.plan(plan);
-    //
-    //     if(success){
-    //
-    //       try{
-    //
-    //         move_group.move();
-    //         Attempts = 0;
-    //         ret = true;
-    //
-    //       }
-    //
-    //       catch(moveit::planning_interface::MoveItErrorCode ex) {
-    //
-    //         std::cout << "Something went wrong. Failed to move to Goal" <<
-    //         std::endl;
-    //         ret = false;
-    //
-    //       }
-    //
-    //     } else {
-    //
-    //       std::cout << "Planning unsuccessful" << std::endl;
-    //       Attempts--;
-    //       sleep(timeout);
-    //
-    //     }
-    //
-    //   }
-    //
-    //   return ret;
-    //
-    // }
-
     bool moveTo(geometry_msgs::PoseStamped pose, int Attempts, float timeout) {
         bool ret = false;
         bool success = false;
@@ -387,7 +339,6 @@ class pixl {
                     move_group.move();
                     Attempts = 0;
                     ret = true;
-
                 } catch (moveit::planning_interface::MoveItErrorCode ex) {
                     std::cout << "Something went wrong. Failed to move to Goal"
                               << std::endl;
@@ -408,81 +359,15 @@ class pixl {
         return ret;
     }
 
-    // void calculateTrajectory(int numSteps){
-    //
-    //   geometry_msgs::Pose current = move_group.getCurrentPose().pose;
-    //
-    //   float dx = (arm_pose.pose.position.x - current.position.x) / numSteps;
-    //   float dy = (arm_pose.pose.position.y - current.position.y) / numSteps;
-    //   float dz = (arm_pose.pose.position.z - current.position.z) / numSteps;
-    //
-    //   for (int i=0;i<numSteps;i++){
-    //
-    //     current.position.x += dx;
-    //     current.position.y += dy;
-    //     current.position.z += dz;
-    //
-    //     waypoints.push_back(current);
-    //
-    //   };
-    //
-    //   waypoints.begin();
-    // }
-    //
-    // bool moveToCartesianPath(geometry_msgs::PoseStamped targetPose, int
-    // Attempts, float timeout, bool async){
-    //
-    //   bool response = true;
-    //   ros::ServiceClient executeKnownTrajectoryServiceClient =
-    //   nh_.serviceClient<moveit_msgs::ExecuteKnownTrajectory>("/execute_kinematic_path");
-    //
-    //   move_group.setPoseReferenceFrame("world");
-    //   move_group.setStartStateToCurrentState();
-    //   move_group.setPoseTarget(targetPose);
-    //
-    //   // set waypoints for which to compute path
-    //   std::vector<geometry_msgs::Pose> waypoints;
-    //   waypoints.push_back(move_group.getCurrentPose().pose);
-    //   waypoints.push_back(targetPose.pose);
-    //   moveit_msgs::ExecuteKnownTrajectory srv;
-    //
-    //   // compute cartesian path
-    //   double ret = move_group.computeCartesianPath(waypoints, 0.1, 10000,
-    //   srv.request.trajectory, false);
-    //   if(ret < 0){
-    //     // no path could be computed
-    //     ROS_INFO_STREAM("Unable to compute Cartesian path!");
-    //     response = false;
-    //   } else if (ret < 1){
-    //     // path started to be computed, but did not finish
-    //     ROS_INFO_STREAM("Cartesian path computation finished " << ret * 100
-    //     << "% only!");
-    //     response = false;
-    //   }
-    //
-    //   // send trajectory to arm controller
-    //   srv.request.wait_for_execution = true;
-    //   executeKnownTrajectoryServiceClient.call(srv);
-    //   return response;
-    // }
-
-    // void addImageNoise(cv::Mat &image) {
-    //   cv::Mat noise = cv::Mat::zeros(image.size(),CV_8U);
-    //   cv::randn(noise, cv::Scalar(0), cv::Scalar(20));
-    //   cv::add(image,noise,image);
-    //
-    // }
-
     void callbackHR(const sensor_msgs::Image::ConstPtr imageColor) {
-        readImageColor(imageColor, color);
-        // addImageNoise(color);
+        readImage(imageColor, color);
         cv::imshow(HI_RES_WINDOW, color);
         cv::waitKey(3);
     }
 
     // void callbackLR(const sensor_msgs::Image::ConstPtr imageGrey)
     // {
-    //   readImageGrey(imageGrey, grey);
+    //   readImage(imageGrey, grey);
     //   cv::imshow(LO_RES_WINDOW, grey);
     //   cv::waitKey(3);
     // }
@@ -518,19 +403,19 @@ class pixl {
         // regionOfInterest.cols);
         // ROS_INFO_STREAM("obj estimate updated: " << objectposz);
         ROS_INFO_STREAM("watsonScale: " << watsonScale / pixlMult);
-        watsonScale /= mat(0, 0);  //(1 + (mat(0,0)-1)*watsonMult);
+        watsonScale /= mat(0, 0);  // (1 + (mat(0,0)-1)*watsonMult);
         ROS_INFO_STREAM("watsonScale updated: " << watsonScale);
         // arm_pose.pose.position.z = - objectposz + watsonScale +
         // CAMERA_OFFSET; // estimate vertical position based on returned scale
         arm_pose.pose.position.z =
             watsonScale + CAMERA_OFFSET;  // estimate vertical position based on
-                                          // returned scale
+        // returned scale
         ROS_INFO_STREAM("z: " << arm_pose.pose.position.z);
         float dx = (watsonScale * tan(HALF_HFOV * M_PI / 180) * 2) *
                    (mat(0, 3) / color.cols);  // (estimate of width of image
-                                              // (width) contents) *
-                                              // (translation in pixels / image
-                                              // width in pixels)
+        // (width) contents) *
+        // (translation in pixels / image
+        // width in pixels)
         float dy = (watsonScale * tan(HALF_HFOV * M_PI / 180) * 2) *
                    (mat(0, 2) / color.cols);
         ROS_INFO_STREAM("dx: " << dx);
@@ -545,7 +430,6 @@ class pixl {
                 throw tf::TransformException(
                     "Move to estimated position failed");
             }
-
         } catch (tf::TransformException ex) {
             // if move unsuccessful, reset to pixl then watson positions, record
             // to note,
@@ -650,7 +534,6 @@ class pixl {
                         throw tf::TransformException(
                             "Move to servo position failed");
                     }
-
                 } catch (tf::TransformException ex) {
                     note << ex.what();
                     ROS_INFO_STREAM(ex.what());
@@ -707,7 +590,7 @@ class pixl {
                 // ROS_INFO_STREAM("obj estimate updated: " << objectposz);
                 ROS_INFO_STREAM("watsonScale: " << watsonScale);
                 watsonScale /=
-                    servo_scale;  //(1 + (servo_scale-1)*watsonMult/pixlMult);
+                    servo_scale;  // (1 + (servo_scale-1)*watsonMult/pixlMult);
                 ROS_INFO_STREAM("watsonScale updated: " << watsonScale);
                 // arm_pose.pose.position.z = - objectposz + watsonScale +
                 // CAMERA_OFFSET; // (estimate of object position in world)
@@ -717,9 +600,9 @@ class pixl {
                 ROS_INFO_STREAM("z: " << arm_pose.pose.position.z);
                 float dx = (watsonScale * tan(HALF_HFOV * M_PI / 180) * 2) *
                            (-servo_x / color.cols);  // (estimate of width of
-                                                     // image (width) contents)
-                                                     // * (translation in pixels
-                                                     // / image width in pixels)
+                // image (width) contents)
+                // * (translation in pixels
+                // / image width in pixels)
                 float dy = (watsonScale * tan(HALF_HFOV * M_PI / 180) * 2) *
                            (servo_y / color.cols);
                 ROS_INFO_STREAM("dx: " << dx);
@@ -733,7 +616,6 @@ class pixl {
                         throw tf::TransformException(
                             "Move to servo position failed");
                     }
-
                 } catch (tf::TransformException ex) {
                     note << ex.what();
                     ROS_INFO_STREAM(ex.what());
@@ -776,21 +658,12 @@ class pixl {
         reg_complete = true;
     }
 
-    void readImageColor(const sensor_msgs::Image::ConstPtr msgImage,
-                        cv::Mat& image) {
+    void readImage(const sensor_msgs::Image::ConstPtr msgImage,
+                   cv::Mat& image) {
         cv_bridge::CvImageConstPtr pCvImage;
-        pCvImage = cv_bridge::toCvShare(msgImage, "bgr8");
+        pCvImage = cv_bridge::toCvShare(msgImage, msgImage->encoding);
         pCvImage->image.copyTo(image);
-        // cv::cvtColor(image,image,cv::COLOR_BGR2RGB);
     }
-
-    // void readImageGrey(const sensor_msgs::Image::ConstPtr msgImage, cv::Mat
-    // &image)
-    // {
-    //   cv_bridge::CvImageConstPtr pCvImage;
-    //   pCvImage = cv_bridge::toCvShare(msgImage, "mono8");
-    //   pCvImage->image.copyTo(image);
-    // }
 
     void mouse_click(int event, int x, int y) {
         switch (event) {
@@ -816,29 +689,28 @@ class pixl {
                 watsonScale = move_group.getCurrentPose().pose.position.z -
                               CAMERA_OFFSET - objectposz;
                 watsonScaleFromRef = watsonScale;
-                Froi = float(color.cols) / regionOfInterest.cols;
+                Froi = static_cast<float>(color.cols) / regionOfInterest.cols;
                 watsonScale /= Froi;
                 watsonScaleFromROI = watsonScale;
 
                 break;
             }
 
-            // case cv::EVENT_MBUTTONDOWN:
-            // {
-            //
-            //   pointA.x = 0;
-            //   pointA.y = 0;
-            //   pointB.x = color.size().width;
-            //   pointB.y = color.size().height;
-            //
-            //   displaySelectedRegion();
-            //
-            //   watsonScale = move_group.getCurrentPose().pose.position.z -
-            //   CAMERA_OFFSET - objectposz;
-            //
-            //   reset_pixl = true;
-            //   break;
-            // }
+            case cv::EVENT_MBUTTONDOWN: {
+                //
+                //   pointA.x = 0;
+                //   pointA.y = 0;
+                //   pointB.x = color.size().width;
+                //   pointB.y = color.size().height;
+                //
+                //   displaySelectedRegion();
+                //
+                //   watsonScale = move_group.getCurrentPose().pose.position.z -
+                //   CAMERA_OFFSET - objectposz;
+                //
+                //   reset_pixl = true;
+                break;
+            }
 
             case cv::EVENT_RBUTTONDOWN: {
                 // new_pixl();
@@ -872,7 +744,7 @@ class pixl {
         cv::rectangle(watson_initial_image, pointA, pointB,
                       cv::Scalar(255, 255, 0), 2);
         cv::namedWindow(REGION_WINDOW, cv::WINDOW_NORMAL);
-        // cv::setMouseCallback(REGION_WINDOW, feature_click, this);
+
         cv::imshow(REGION_WINDOW, regionOfInterest);
         watsonMsg =
             cv_bridge::CvImage(std_msgs::Header(), "bgr8", regionOfInterest)
@@ -891,41 +763,20 @@ class pixl {
         objectposzInit = objectposz;
     }
 
-    // void feature_click(int event, int x, int y)
-    // {
-    //   switch(event)
-    //   {
-    //     case cv::EVENT_LBUTTONDOWN:
-    //     {
-    //
-    //       featurePoint.x = x;
-    //       featurePoint.y = y;
-    //       displayFeatureRegion();
-    //
-    //       break;
-    //     }
-    //   }
-    //
-    // }
-    //
-    // static void feature_click(int event, int x, int y, int, void* this_) {
-    //   static_cast<pixl*>(this_)->feature_click(event, x, y);
-    // }
-
     void pixl_click(int event, int x, int y) {
         switch (event) {
-            // case cv::EVENT_LBUTTONDOWN:
-            // {
-            //   pixlMsg = cv_bridge::CvImage(std_msgs::Header(), "mono8",
-            //   grey).toImageMsg();
-            //   grey.copyTo(pixl_initial_image);
-            //   pixlPub.publish(pixlMsg);
-            //   scalePub.publish(scale);
-            //   pixlScale = objectposz +
-            //   move_group.getCurrentPose().pose.position.z - CAMERA_OFFSET;
-            //   HALF_HFOVdScale();
-            //   break;
-            // }
+            case cv::EVENT_LBUTTONDOWN: {
+                //   pixlMsg = cv_bridge::CvImage(std_msgs::Header(), "mono8",
+                //   grey).toImageMsg();
+                //   grey.copyTo(pixl_initial_image);
+                //   pixlPub.publish(pixlMsg);
+                //   scalePub.publish(scale);
+                //   pixlScale = objectposz +
+                //   move_group.getCurrentPose().pose.position.z -
+                //   CAMERA_OFFSET;
+                //   HALF_HFOVdScale();
+                break;
+            }
 
             case cv::EVENT_MBUTTONDOWN: {
                 reset_pixl = true;
@@ -958,7 +809,7 @@ class pixl {
         // imageLRSub = nh_.subscribe("/nothing", 10, &pixl::callbackLR, this);
         cv::setMouseCallback(LO_RES_WINDOW, pixl_click,
                              this);  // used for user input for moving between
-                                     // watson and pixl positions
+        // watson and pixl positions
     }
 
     void save_images() {

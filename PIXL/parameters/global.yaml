@@ -1,0 +1,59 @@
+nasa:
+    {'robot': 'baxter',
+    'move_group': 'right_arm',
+    'image_topic_1': '/usb_cam/image_raw',
+    'image_topic_2': '/realsense/rgb/image_raw',
+    'ur5':
+        {'pixl':
+            {'position':
+                {'x': 0.0,
+                'y': 0.0,
+                'z': 0.0,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 0.0,
+                'yaw': 0.0,
+                },
+            },
+        'watson':
+            {'position':
+                {'x': 0.0,
+                'y': 0.0,
+                'z': 0.0,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 0.0,
+                'yaw': 0.0,
+                },
+            },
+        },
+    'baxter':
+        {'which_arm': 'right_arm',
+        'pixl':
+            {'position':
+                {'x': 0.0,
+                'y': 0.0,
+                'z': 0.0,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 0.0,
+                'yaw': 0.0,
+                },
+            },
+        'watson':
+            {'position':
+                {'x': 0.0,
+                'y': 0.0,
+                'z': 0.0,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 0.0,
+                'yaw': 0.0,
+                },
+            },
+        },
+    }

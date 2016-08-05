@@ -3,6 +3,8 @@
 
   <xacro:arg name="gazebo" default="false"/>
   <xacro:arg name="pedestal" default="true"/>
+  <xacro:arg name="left_arm" default="false"/>
+  <xacro:arg name="no_suction" default="false" />
   <!-- Baxter Base URDF -->
   <xacro:include filename="$(find baxter_description)/urdf/baxter_base/baxter_base.urdf.xacro">
     <xacro:arg name="gazebo" value="${gazebo}"/>
@@ -15,10 +17,28 @@
     </xacro:include>
   </xacro:if>
 
-  <!-- Left End Effector -->
-  <xacro:include filename="$(find baxter_description)/urdf/left_end_effector.urdf.xacro" />
 
-  <!-- Right End Effector -->
-  <xacro:include filename="$(find baxter_description)/urdf/right_end_effector.urdf.xacro" />
+  <xacro:if value="$(arg no_suction)">
+      <xacro:include filename="$(find baxter_description)/urdf/apc_right_end_effector.urdf.xacro"/>
 
+      <xacro:include filename="$(find baxter_description)/urdf/apc_left_end_effector.urdf.xacro"/>
+
+  </xacro:if>
+  <xacro:unless value="$(arg no_suction)">
+      <xacro:if value="$(arg left_arm)">
+        <!-- Left End Effector -->
+        <xacro:include filename="$(find baxter_description)/urdf/left_end_effector.urdf.xacro"/>
+
+        <!-- Right End Effector -->
+        <xacro:include filename="$(find baxter_description)/urdf/apc_right_end_effector.urdf.xacro"/>
+      </xacro:if>
+
+      <xacro:unless value="$(arg left_arm)">
+        <!-- Right End Effector -->
+        <xacro:include filename="$(find baxter_description)/urdf/right_end_effector.urdf.xacro"/>
+
+        <!-- Left End Effector -->
+        <xacro:include filename="$(find baxter_description)/urdf/apc_left_end_effector.urdf.xacro"/>
+      </xacro:unless>
+  </xacro:unless>
 </robot>

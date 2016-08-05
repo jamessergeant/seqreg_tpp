@@ -1,0 +1,11 @@
+<launch>
+
+    <param name="/nasa/image_topic" value="/usb_cam/image_raw" />
+
+    <rosparam command="load" file="$(find pixl)/parameters/global.yaml"/>
+
+    <node name="PIXL" pkg="pixl" type="pixl" >
+    </node>
+
+
+</launch>

@@ -1,0 +1,4 @@
+left_arm:
+  rotation_only_ik: true
+right_arm:
+  rotation_only_ik: true

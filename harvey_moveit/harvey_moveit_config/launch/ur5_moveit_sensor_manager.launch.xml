@@ -1,0 +1,50 @@
+<launch>
+	<!--arg name="camera_link_pose" default="-0.535 0.2 0.35 0.0 3.14 1.53"-->
+	<!--arg name="camera_link_pose" default="-0.534 0.17 1.35 0.0 -3.14 1.53"-->
+	<!--arg name="camera_link_pose" default="-0.37  -0.65 1.04 1.57 -3.14 1.57"/>
+        <node pkg="tf" type="static_transform_publisher" name="camera_link_broadcaster"
+               args="$(arg camera_link_pose) /world /kinect2_link 100" -->
+
+	<!--arg name="camera_link_pose" default="-0.35 0.06 0.65 3.14 -1.57 0.0"-->
+        <arg name="camera_link_pose" default="-0.22 0.05 0.69 3.14 -1.57 0.0"/>
+        <node pkg="tf" type="static_transform_publisher" name="camera_link_broadcaster"
+               args="$(arg camera_link_pose) /base_link /kinect2_link 100" />
+
+	<!-- Realsense Camera Link Old Gripper-->
+        <!--arg name="realsense_camera_link_pose" default="0.09 -0.03 -0.0785 0 -0.0 -3.14"/>
+	<arg name="realsense_camera_link_pose" default="0.09 -0.03 -0.0785 0 -0.0 -3.14"/>
+        <node pkg="tf" type="static_transform_publisher" name="realsense_link_broadcaster"
+               args="$(arg realsense_camera_link_pose) /ee_link /camera_link 100" -->
+
+	<!-- Realsense Camera Link Cutting Gripper 143-->
+        <arg name="realsense_camera_link_pose" default="0.143 -0.024 -0.05 0 -0.0 -3.14"/>
+	<!--arg name="realsense_camera_link_pose" default="0.143 -0.024 -0.05 0 -0.0 -3.14"-->
+        <node pkg="tf" type="static_transform_publisher" name="realsense_link_broadcaster"
+               args="$(arg realsense_camera_link_pose) /ee_link /camera_link 100" />
+
+	<!-- eye2hand calibration result for new realsense cam 23/Oct/2015 by Inkyu
+	<arg name="realsense_camera_link_pose" default="0.0993619 -0.00720162 -0.0690537 0.481213 0.490786 0.510805 0.516374"/>
+        <node pkg="tf" type="static_transform_publisher" name="realsense_link_broadcaster"
+               args="$(arg realsense_camera_link_pose) /ee_link /camera_rgb_optical_frame 100" /> -->
+
+
+
+        <arg name="realsense_camera_link_pose2" default="0.143 -0.024 -0.05 0 -0.0 -3.14"/>
+        <node pkg="tf" type="static_transform_publisher" name="realsense_link_broadcaster2"
+               args="$(arg realsense_camera_link_pose2) /ee_link /realsense_frame  100" />
+
+        <!--arg name="realsense_camera_link_pose" default="0.0782077 0.0814164 -0.13445 0.451593 0.43386 0.488869 0.607319"/>
+        <node pkg="tf" type="static_transform_publisher" name="realsense_link_broadcaster"
+               args="$(arg realsense_camera_link_pose) /ee_link /camera_link 100" -->
+
+        <!--arg name="realsense_camera_link_pose2" default="0.0782077 0.0814164 -0.13445 0.451593 0.43386 0.488869 0.607319"/>
+        <node pkg="tf" type="static_transform_publisher" name="realsense_link_broadcaster2"
+               args="$(arg realsense_camera_link_pose2) /ee_link /realsense_frame 100" -->
+
+	<!--group ns="move_group" -->
+             <param name="octomap_frame" type="string" value="world" />
+             <param name="octomap_resolution" type="double" value="0.05" />
+             <!--param name="max_range" type="double" value="1.5"-->
+             <rosparam command="load" file="$(find harvey_moveit_config)/config/kinect2_sensor.yaml" />
+        <!--/group-->
+</launch>
