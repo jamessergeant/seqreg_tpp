@@ -2,269 +2,125 @@
 import rospy
 import smach
 import smach_ros
+import sys
 
 import threading
 
 from abortState import AbortState
 from moveRobotToNamedPose import MoveRobotToNamedPose
+from moveRobotToPose import MoveRobotToPose
 from moveRobotToRelativePose import MoveRobotToRelativePose
 from publisherState import PublisherState
 from toggleBinFillersAndTote import ToggleBinFillersAndTote
+from generatePose import GeneratePose
+from userInputRequest import UserInputRequest
+from tf.transformations import quaternion_from_euler
 
 from geometry_msgs.msg import Pose, Point, Quaternion
-from baxter_core_msgs.msg import EndEffectorCommand
 
 # =============================================================================
 if __name__ == '__main__':
-    rospy.init_node('nasa_state_machine')
 
-    which_arm = rospy.get_param("/nasa/baxter/which_arm","right_arm")
+    rospy.init_node('seqslam_tpp_state_machine')
 
-    if which_arm[:4] == "left":
-        limb = "left_"
+    which_robot = rospy.get_param('/seqslam_tpp/robot','baxter')
+
+    robot_information = rospy.param('/seqslam_tpp/'+ which_robot)
+
+    initial_pose = paramToPose(robot_information['initial_pose'])
+    secondary_pose = paramToPose(robot_information['secondary_pose'])
+
+    initial_noise = (robot_information['initial_noise']['x'],robot_information['initial_noise']['y'],robot_information['initial_noise']['z'])
+    secondary_noise = (robot_information['secondary_noise']['x'],robot_information['secondary_noise']['y'],robot_information['secondary_noise']['z'])
+
+    if which_robot == 'baxter':
+        # determine which baxter arm is to be used
+        movegroup = robot_information['which_arm']
+
+        if movegroup[:4] == 'left':
+            limb = 'left_'
+        else:
+            limb = 'right_'
+
+    elif which_robot == 'ur5':
+        movegroup = 'manipulator'
+
     else:
-        limb = "right_"
+        rospy.logwarn('Incorrect robot specified')
+        sys.exit()
 
-    sm_init = smach.StateMachine(outcomes=['repeat','perception','abort_next_object'],
-        output_keys=['next_item_to_pick','current_item_attempts'])
+    sm_init = smach.StateMachine(outcomes=['repeat','user_input','abort_next_trial'],
+        output_keys=['initial_pose','data'])
 
     with sm_init:
 
         sm_init.add('set_the_shelf_collision_scene_init',
             ToggleBinFillersAndTote(action='all_bins'),
-               transitions={'succeeded':'set_the_tote_collision_scene',
+               transitions={'succeeded':'generate_initial',
                 'failed': 'repeat'})
 
-        sm_init.add('move_to_neutral_start', MoveRobotToNamedPose(movegroup=limb + 'arm',
-                                   goal_pose_name=limb + 'neutral'),
-               transitions={'succeeded':'perception',
+        sm_init.add('generate_initial',GeneratePose(pose=initial_pose,noise=initial_noise,tag='initial_pose'),
+                transitions={'suceeded': 'move_to_initial',
+                            'failed':'generate_initial'})
+
+        sm_init.add('move_to_initial', MoveRobotToPose(movegroup=movegroup),
+               transitions={'succeeded':'user_input',
                             'failed': 'repeat'})
 
-    sm_perception = smach.StateMachine(outcomes=['repeat','grasping',
+    sm_userinput = smach.StateMachine(outcomes=['repeat','positioning','abort_next_trial'],input_keys=['initial_pose','data'],
+        output_keys=['initial_image','secondary_pose','data'])
+
+    with sm_userinput:
+
+        sm_userinput.add('user_input_request', UserInputRequest(), transitions={'succeeded':'generate_secondary','failed':'repeat'})
+
+        sm_userinput.add('generate_secondary',GeneratePose(pose=secondary_pose,noise=secondary_noise,tag='secondary_pose'),transitions={'succeeded':'move_to_secondary','failed':'generate_secondary'})
+
+        sm_userinput.add('move_to_secondary', MoveRobotToPose(movegroup=movegroup),
+        transitions={'succeeded':'positioning',
+            'failed': 'repeat'})
+
+
+    sm_positioning = smach.StateMachine(outcomes=['repeat','grasping',
         'abort_next_object'],input_keys=['next_item_to_pick'],
         output_keys=['googlenet'])
 
-    with sm_perception:
+    with sm_positioning:
 
-        sm_perception.add('toggle_lip_off', ToggleBinFillersAndTote(action='lip_off'),
-           transitions={'succeeded':'shelf_scan',
-            'failed': 'shelf_scan'})
+        sm_positioning.add('capture_image', UserInputRequest(), transitions={'succeeded':'seqslam','failed':'repeat'})
 
-        sm_perception.add('shelf_scan',ScanShelfState(),
-            transitions={'succeeded':'toggle_lip_on','failed':'repeat'})
+        sm_positioning.add('seqslam', SeqSLAMState(), transitions={'succeeded': '', 'failed':''})
 
-        sm_perception.add('toggle_lip_on', ToggleBinFillersAndTote(action='lip_on'),
-           transitions={'succeeded':'get_kinfu_cloud',
-            'failed': 'repeat'})
+        sm_positioning.add('calculate_move', CalculateMove(), transitions={'succeeded': '', 'failed':''})
 
-        sm_perception.add('get_kinfu_cloud',GetKinfuCloud(),
-           transitions={'succeeded':'crop_kinfu_cloud','failed':'repeat'})
-
-        sm_perception.add('crop_kinfu_cloud',ShelfBasedCropCloud(),
-           transitions={'succeeded':'segment_cloud','failed':'repeat'})
-
-        sm_perception.add('segment_cloud',SegmentPointcloud(),
-           transitions={'succeeded':'object_proposals','failed':'repeat'})
-
-        sm_perception.add('object_proposals',ObjectProposals(),
-           transitions={'succeeded':'googlenet_classify','failed':'repeat'})
-
-        sm_perception.add('googlenet_classify',GooglenetState(),
-           transitions={'succeeded':'grasping','failed':'repeat'})
-
-    sm_grasp = smach.StateMachine(outcomes=['repeat','perception','move_tote',
-    'abort_next_object'],
-        input_keys=['next_item_to_pick','googlenet','current_item_attempts'],
-        output_keys=['move_group','current_item_attempts'])
-
-    with sm_grasp:
-
-        sm_grasp.add('decide_grasp_pose', DecideGraspPoseStateFromPointCloud(),
-            transitions={'succeeded':'toggle_lip_off',
-                         'failed':'track_number_of_grasp_attempts'})
-
-        sm_grasp.add('toggle_lip_off', ToggleBinFillersAndTote(action='lip_off'),
-           transitions={'succeeded':'move_sucker_infront_of_bin',
-            'failed': 'track_number_of_grasp_attempts'})
-
-        sm_grasp.add('move_sucker_infront_of_bin', MoveRobotToNamedPose(movegroup=limb + 'arm',
-                        name_prefix=limb + 'ready_to_suck_in_'),
-            transitions={'succeeded':'toggle_lip_on',
-                         'failed': 'track_number_of_grasp_attempts'})
-
-        sm_grasp.add('toggle_lip_on', ToggleBinFillersAndTote(action='lip_on'),
-           transitions={'succeeded':'move_arm_to_object',
-            'failed': 'track_number_of_grasp_attempts'})
-
-        sm_grasp.add('move_arm_to_object', GraspObjectState(velocity_scale=0.5),
-            transitions={'succeeded':'turn_off_the_shelf_collision_scene',
-                         'failed':'turn_off_the_shelf_collision_scene_failed',
-                         'aborted':'turn_off_the_shelf_collision_scene_failed'})
-
-        sm_grasp.add('turn_off_the_shelf_collision_scene',
-            ToggleBinFillersAndTote(action='unfill_bins'),
-             transitions={'succeeded':'lift_object_up',
-              'failed': 'turn_off_the_shelf_collision_scene'})
-
-        sm_grasp.add('turn_off_the_shelf_collision_scene_failed',
-          ToggleBinFillersAndTote(action='unfill_bins'),
-           transitions={'succeeded':'move_object_back_out',
-            'failed': 'turn_off_the_shelf_collision_scene_failed'})
-
-
-        sm_grasp.add('lift_object_up',
-            MoveRobotToRelativePose(movegroup=limb + 'arm_cartesian',
-                                    pose_frame_id='/shelf',
-                                    relative_pose=
-                                        Pose(position=Point(-0.10,0,0),
-                                            orientation=Quaternion(0,0,0,1)),
-                                    velocity_scale=1.0),
-                                    transitions={'succeeded':'check_pressure_sensor',
-                                    'failed':'move_object_back_out','aborted':'move_object_back_out'})
-
-        sm_grasp.add('move_object_back_out', MoveRobotToRelativePose(movegroup=limb + 'arm_cartesian',
-                         pose_frame_id='/shelf', relative_pose=Pose(position=Point(0,0,-0.45),orientation=Quaternion(0,0,0,1)),
-                         velocity_scale=1.0),
-          transitions={'succeeded':'reset_the_shelf_collision_scene',
-                       'failed':'track_number_of_grasp_attempts','aborted':'track_number_of_grasp_attempts'})
-
-        sm_grasp.add('move_back_out_no_object', MoveRobotToRelativePose(movegroup=limb + 'arm_cartesian',
-                         pose_frame_id='/shelf', relative_pose=Pose(position=Point(0,0,-0.45),orientation=Quaternion(0,0,0,1)),
-                         velocity_scale=1.0),
-          transitions={'succeeded':'reset_the_shelf_collision_scene_failed',
-                       'failed':'track_number_of_grasp_attempts','aborted':'track_number_of_grasp_attempts'})
-
-        sm_grasp.add('reset_the_shelf_collision_scene', ToggleBinFillersAndTote(action='fill_bins'),
-             transitions={'succeeded':'turn_lip_off',
-              'failed': 'reset_the_shelf_collision_scene'})
-
-        sm_grasp.add('reset_the_shelf_collision_scene_failed', ToggleBinFillersAndTote(action='fill_bins'),
-             transitions={'succeeded':'turn_lip_off_failed',
-              'failed': 'reset_the_shelf_collision_scene_failed'})
-
-        sm_grasp.add('turn_lip_off', ToggleBinFillersAndTote(action='lip_off'),
-            transitions={'succeeded':'move_tote',
-            'failed': 'turn_lip_off'})
-
-        sm_grasp.add('turn_lip_off_failed', ToggleBinFillersAndTote(action='lip_off'),
-            transitions={'succeeded':'track_number_of_grasp_attempts',
-            'failed': 'turn_lip_off_failed'})
-
-        sm_grasp.add('check_pressure_sensor', CheckPressureSensorState(),transitions={'succeeded':'move_object_back_out',
-                     'failed':'pressure_failed_suction_off'})
-
-        sm_grasp.add('pressure_failed_suction_off', SuctionState(state='off', movegroup=None),
-            transitions={'succeeded':'move_back_out_no_object', 'failed':'track_number_of_grasp_attempts'})
-
-        sm_grasp.add('track_number_of_grasp_attempts', TrackItemGraspAttemptsState(),
-            transitions={'try_this_item_again':'perception', 'move_on_to_next_item':'abort_next_object'})
-
-    sm_move_tote = smach.StateMachine(outcomes=['repeat','perception','finished_next_object'],input_keys=['next_item_to_pick','move_group'])
-
-    with sm_move_tote:
-
-        sm_move_tote.add('move_to_drop_pose', MoveRobotToNamedPose(movegroup=limb + 'arm',
-                                        goal_pose_name=limb + 'tote'),
-            transitions={'succeeded':'turn_tote_off',
-                         'failed': 'move_to_neutral_drop_failed'})
-
-        sm_move_tote.add('turn_tote_off', ToggleBinFillersAndTote(action='tote_off'),
-           transitions={'succeeded':'lower_into_tote',
-            'failed': 'turn_tote_off'})
-
-        sm_move_tote.add('lower_into_tote', MoveRobotToNamedPose(movegroup=limb + 'arm',
-                                                         goal_pose_name=limb + 'tote_drop'),
-                             transitions={'succeeded':'check_pressure_sensor',
-                                          'failed': 'move_to_neutral_drop_failed'})
-
-        sm_move_tote.add('move_to_neutral_drop_failed', MoveRobotToNamedPose(movegroup=limb + 'arm',
-                                             goal_pose_name=limb + 'neutral'),
-                     transitions={'succeeded':'move_to_drop_pose',
-                                  'failed': 'move_to_neutral_drop_failed'})
-
-        sm_move_tote.add('check_pressure_sensor', CheckPressureSensorState(),transitions={'succeeded':'remove_current_pick',
-                     'failed':'pick_unsuccessful'})
-
-        sm_move_tote.add('pick_unsuccessful', PickUnsuccessfulState(),
-        transitions={'succeeded':'deactivate_suction','aborted':'deactivate_suction'})
-
-        sm_move_tote.add('remove_current_pick', PickSuccessfulState(),
-        transitions={'succeeded':'deactivate_suction','aborted':'remove_current_pick'})
-
-        sm_move_tote.add('deactivate_suction', SuctionState(state='off', movegroup=None),
-            transitions={'succeeded':'remove_object_collision', 'failed':'deactivate_suction'})
-
-        sm_move_tote.add('remove_object_collision', UpdateCollisionState(action='detach'),
-            transitions={'succeeded':'move_back_to_drop_pose','aborted':'remove_object_collision'})
-
-        sm_move_tote.add('move_back_to_drop_pose', MoveRobotToNamedPose(movegroup=limb + 'arm',
-                                            goal_pose_name=limb + 'tote'),
-                transitions={'succeeded':'turn_tote_on', 'failed': 'move_back_to_drop_pose'})
-
-        sm_move_tote.add('turn_tote_on', ToggleBinFillersAndTote(action='tote_on'),
-           transitions={'succeeded':'move_to_neutral',
-            'failed': 'turn_tote_on'})
-
-        sm_move_tote.add('move_to_neutral', MoveRobotToNamedPose(movegroup=limb + 'arm',
-                                    goal_pose_name=limb + 'neutral'),
-            transitions={'succeeded':'finished_next_object',
-                         'failed': 'move_to_neutral'})
-
-    # # Create the top level SMACH state machine
-    # sm_move_bin = smach.StateMachine(outcomes=['repeat','perception','move_to_tote','abort_next_object'])
-    #
-    # # create states and connect them
-    # with sm_move_bin:
-    #
-    #     # move the object on top of the tote to drop it
-    #     sm_move_bin.add('move_to_drop_pose', MoveRobotToNamedPose(movegroup=limb + 'arm',
-    #                                     goal_pose_name=limb + 'tote'),
-    #         transitions={'succeeded':'deactivate_suction',
-    #                      'aborted': 'move_to_neutral_1',
-    #                      'failed': 'move_to_neutral_1'})
-    #
-    #     sm_move_bin.add('move_to_neutral_1', MoveRobotToNamedPose(movegroup=limb + 'arm',
-    #                             goal_pose_name=limb + 'neutral'),
-    #         transitions={'succeeded':'deactivate_suction',
-    #                      'failed': 'temp_remove_object_collision'})
-    #
-    #     sm_move_bin.add('temp_remove_object_collision', UpdateCollisionState(action='detach'),
-    #         transitions={'succeeded':'abort_state'})
-    #
-    #     sm_move_bin.add('deactivate_suction', SuctionState(state='off', movegroup=None),
-    #         transitions={'succeeded':'remove_object_collision', 'failed':'abort_state'})
-    #
-    #     sm_move_bin.add('remove_object_collision', UpdateCollisionState(action='detach'),
-    #         transitions={'succeeded':'remove_current_pick'})
-    #
-    #     sm_move_bin.add('remove_current_pick', PopItemState(),
-    #         transitions={'succeeded':'move_to_neutral'})
-    #
-    #     sm_move_bin.add('move_to_neutral', MoveRobotToNamedPose(movegroup=limb + 'arm',
-    #                                 goal_pose_name=limb + 'neutral'),
-    #         transitions={'succeeded':'decide_next_pick',
-    #                      'failed': 'abort_state'})
+        # RelativePose or AbsolutePose?
+        sm_userinput.add('move_to_secondary', MoveRobotToRelativePose(movegroup=movegroup,
+                                pose_frame_id='/shelf',
+                                relative_pose=
+                                    Pose(position=Point(-0.10,0,0),
+                                        orientation=Quaternion(0,0,0,1)),
+                                velocity_scale=1.0),
+               transitions={'succeeded':'user_input',
+                            'failed': 'repeat'})
 
 
     # TOP LEVEL STATE MACHINE
     sm = smach.StateMachine(outcomes=['succeeded', 'aborted'])
 
     with sm:
-        sm.add('INITIAL', sm_init, transitions={'repeat':'INITIAL','perception':'PERCEPTION','abort_next_object':'POP'},remapping={'next_item_to_pick':'next_item_to_pick', 'current_item_attempts':'current_item_attempts'})#,'abort_all':'ABORT'})
-        sm.add('PERCEPTION', sm_perception, transitions={'repeat':'PERCEPTION','grasping':'GRASPING','abort_next_object':'POP'},remapping={'googlenet':'googlenet', 'current_item_attempts':'current_item_attempts'})#,'abort_all':'ABORT'})
-        sm.add('GRASPING', sm_grasp, transitions={'repeat':'GRASPING','perception':'PERCEPTION','move_tote':'MOVE_TOTE','abort_next_object':'POP'},remapping={'move_group':'move_group', 'current_item_attempts':'current_item_attempts'})#,'abort_all':'ABORT'})
-        sm.add('MOVE_TOTE', sm_move_tote, transitions={'repeat':'MOVE_TOTE','perception':'PERCEPTION','finished_next_object':'INITIAL'})#,'abort_all':'ABORT'})
-        # sm.add('MOVE_BIN', sm_move_bin, transitions={})
+        sm.add('INITIAL', sm_init,  transitions={'repeat':'INITIAL','user_input':'USERINPUT','abort_next_trial':'ABORT'},remapping={'initial_pose':'initial_pose'})
+        sm.add('USERINPUT', sm_userinput, transitions={'repeat':'USERINPUT','positioning':'POSITIONING','abort_next_trial':'ABORT'},remapping={'initial_image':'initial_image','secondary_pose':'secondary_pose', 'secondary_image':'secondary_image'})
+        sm.add('POSITIONING', sm_positioning, transitions={'repeat':'POSITIONING','grasping':'GRASPING','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('SAVEDATA',sm_savedata,transitions={'repeat':'SAVEDATA','initial':'INITIAL','abort_next_trial':'ABORT'})
+
 
         sm.add('ABORT', AbortState(),
-              transitions={'succeeded':'succeeded'})
-        sm.add('POP', PopItemState(),
-            transitions={'succeeded':'INITIAL'})
+              transitions={'succeeded':'INITIAL'})
 
 
     # Create and start the introspection server
     #  (smach_viewer is broken in indigo + 14.04, so need for that now)
-    sis = smach_ros.IntrospectionServer('server_name', sm, '/APC_SM')
+    sis = smach_ros.IntrospectionServer('server_name', sm, '/NASA_SM')
     sis.start()
 
     # run the state machine
@@ -284,3 +140,15 @@ if __name__ == '__main__':
 
     # stop the introspection server
     sis.stop()
+
+def paramToPose(inputInfo=None):
+
+    outputPose = Pose()
+
+    outputPose.position = Point(inputInfo['position']['x'],inputInfo['position']['y'],inputInfo['position']['z'])
+
+    quaternion = quaternion_from_euler(inputInfo['orientation']['roll'],inputInfo['orientation']['pitch'],inputInfo['orientation']['yaw'])
+
+    outputPose.orientation = Quaternion(*quaternion)
+
+    return outputPose

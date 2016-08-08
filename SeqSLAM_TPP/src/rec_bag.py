@@ -9,7 +9,7 @@ class bag_record:
 
     def __init__(self):
         self.recording = False
-        self.recordSub = rospy.Subscriber("/pixl/record", String, self.record)
+        self.recordSub = rospy.Subscriber("/seqslam_tpp/record", String, self.record)
 
 
     def record(self,msg):

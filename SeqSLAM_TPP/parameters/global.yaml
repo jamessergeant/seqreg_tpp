@@ -1,37 +1,47 @@
-nasa:
+seqslam_tpp:
     {'robot': 'baxter',
     'move_group': 'right_arm',
     'image_topic_1': '/usb_cam/image_raw',
     'image_topic_2': '/realsense/rgb/image_raw',
     'ur5':
-        {'pixl':
+        {'initial_pose':
             {'position':
                 {'x': 0.0,
-                'y': 0.0,
-                'z': 0.0,
+                'y': -0.6,
+                'z': 1.5,
                 },
             'orientation':
                 {'roll': 0.0,
-                'pitch': 0.0,
-                'yaw': 0.0,
+                'pitch': 1.57079632679,
+                'yaw': 1.57079632679,
                 },
             },
-        'watson':
+        'initial_noise':
+            {'x': 0.05,
+            'y': 0.05,
+            'z': 0.05,
+            },
+        'secondary_pose':
             {'position':
                 {'x': 0.0,
-                'y': 0.0,
-                'z': 0.0,
+                'y': -0.6,
+                'z': 0.7,
                 },
             'orientation':
                 {'roll': 0.0,
-                'pitch': 0.0,
-                'yaw': 0.0,
+                'pitch': 1.57079632679,
+                'yaw': 1.57079632679,
                 },
+            },
+        'secondary_noise':
+            {'x': 0.1,
+            'y': 0.05,
+            'z': 0.15,
             },
         },
     'baxter':
         {'which_arm': 'right_arm',
-        'pixl':
+        'initial_pose':
             {'position':
                 {'x': 0.0,
                 'y': 0.0,
@@ -43,7 +53,12 @@ nasa:
                 'yaw': 0.0,
                 },
             },
-        'watson':
+        'initial_noise':
+            {'x': 0.0,
+            'y': 0.0,
+            'z': 0.0,
+            },
+        'secondary_pose':
             {'position':
                 {'x': 0.0,
                 'y': 0.0,
@@ -54,6 +69,11 @@ nasa:
                 'pitch': 0.0,
                 'yaw': 0.0,
                 },
+            },
+        'secondary_noise':
+            {'x': 0.0,
+            'y': 0.0,
+            'z': 0.0,
             },
         },
     }

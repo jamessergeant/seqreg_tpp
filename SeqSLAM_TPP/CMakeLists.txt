@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(pixl)
+project(seqslam_tpp)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -DBT_USE_DOUBLE_PRECISION -Wall")
 
@@ -11,12 +11,15 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   image_transport
   sensor_msgs
+  geometry_msgs
+  std_msgs
   cv_bridge
   message_filters
   pcl_ros
   moveit_core
   moveit_ros_planning
   moveit_ros_planning_interface
+  message_generation
 )
 
 find_package(OpenCV REQUIRED)
@@ -45,6 +48,24 @@ endif()
 # )
 
 
+add_message_files(
+  FILES
+  BoundingBox.msg
+)
+add_service_files(
+  FILES
+  UserSelection.srv
+  MATLABSrv.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  sensor_msgs
+  geometry_msgs
+  seqslam_tpp
+)
+
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
@@ -63,13 +84,14 @@ endif()
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  CATKIN_DEPENDS baxter_core_msgs cv_bridge roscpp image_transport message_filters moveit_core moveit_ros_planning moveit_ros_planning_interface
+  CATKIN_DEPENDS baxter_core_msgs cv_bridge roscpp image_transport message_filters moveit_core moveit_ros_planning moveit_ros_planning_interface message_generation
   # INCLUDE_DIRS include
-  #  LIBRARIES pixl_test
+  #  LIBRARIES seqslam_tpp_test
   # DEPENDS system_lib
 )
 
 ###########
+
 ## Build ##
 ###########
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f OUTPUT_VARIABLE FILES_STRING)
@@ -88,27 +110,28 @@ include_directories(include
 )
 
 ## Declare a cpp library
-# add_library(pixl_test
-#   src/${PROJECT_NAME}/pixl_test.cpp
+# add_library(seqslam_tpp_test
+#   src/${PROJECT_NAME}/seqslam_tpp_test.cpp
 # )
 
 ## Declare a cpp executable
- add_executable(pixl src/initial_pose.cpp)
+ add_executable(seqslam_tpp src/seqslam_tpp.cpp)
+ add_dependencies(seqslam_tpp seqslam_tpp_generate_messages_cpp)
  # add_executable(spawn src/spawn.py)
 
 
 ## Add cmake target dependenciesolour_space.h"
 #include <c of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(pixl_test_node pixl_test_generate_messages_cpp)
+# add_dependencies(seqslam_tpp_test_node seqslam_tpp_test_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(pixl
+ target_link_libraries(seqslam_tpp
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
    ${PCL_LIBRARIES}
  )
- ##target_link_libraries(pixl_kinect
+ ##target_link_libraries(seqslam_tpp_kinect
  ##  ${catkin_LIBRARIES}
  ##  ${OpenCV_LIBS}
 ## )
@@ -129,7 +152,7 @@ include_directories(include
  )
 
 # Mark executables and/or libraries for installation
- install(TARGETS pixl
+ install(TARGETS seqslam_tpp
    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -154,7 +177,7 @@ include_directories(include
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_pixl_test.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_seqslam_tpp_test.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

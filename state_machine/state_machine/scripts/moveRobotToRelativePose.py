@@ -40,24 +40,6 @@ class MoveRobotToRelativePose(smach.State):
 
         self.tf_listener = tf.TransformListener()
 
-    # ================================================================
-    # from baxter examples
-    def jitter(self):
-        rospy.loginfo("jitter around a bit!")
-        limb = baxter_interface.Limb('left')
-        # joint_name = limb.joint_names()[5]
-        delta = 0.05  # in rad
-        # current_position = limb.joint_angle(joint_name)
-        # joint_command = { joint_name: current_position + delta }
-        values = [ limb.joint_angle(joint_name) + ((np.random.rand() * delta) - delta/2.0)  for joint_name in limb.joint_names() ]
-        # print values
-        joint_command = dict([(joint, values[i]) for i, joint in enumerate(limb.joint_names()) ])
-        # print joint_command
-        limb.set_joint_positions(joint_command)
-
-        rospy.loginfo("jittered!")
-
-
     # ==========================================================
     def execute(self, userdata):
         try:
