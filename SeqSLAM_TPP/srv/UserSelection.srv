@@ -1,0 +1,5 @@
+---
+std_msgs/String message
+std_msgs/Bool success
+sensor_msgs/Image image
+seqslam_tpp/BoundingBox bounding_box
