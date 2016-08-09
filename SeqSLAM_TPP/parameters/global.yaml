@@ -41,11 +41,12 @@ seqslam_tpp:
         },
     'baxter':
         {'which_arm': 'right_arm',
+        'frame_id': 'base_45neg',
         'initial_pose':
             {'position':
-                {'x': 0.0,
-                'y': 0.0,
-                'z': 0.0,
+                {'x': 0.8,
+                'y': -0.2,
+                'z': 0.2,
                 },
             'orientation':
                 {'roll': 0.0,
@@ -54,15 +55,15 @@ seqslam_tpp:
                 },
             },
         'initial_noise':
-            {'x': 0.0,
-            'y': 0.0,
-            'z': 0.0,
+            {'x': 0.05,
+            'y': 0.05,
+            'z': 0.05,
             },
         'secondary_pose':
             {'position':
-                {'x': 0.0,
-                'y': 0.0,
-                'z': 0.0,
+                {'x': 1.2,
+                'y': -0.2,
+                'z': 0.2,
                 },
             'orientation':
                 {'roll': 0.0,
@@ -76,4 +77,42 @@ seqslam_tpp:
             'z': 0.0,
             },
         },
+    # 'baxter':
+    #     {'which_arm': 'right_arm',
+    #     'frame_id': 'base',
+    #     'initial_pose':
+    #         {'position':
+    #             {'x': 0.526,
+    #             'y': -0.615,
+    #             'z': 0.562,
+    #             },
+    #         'orientation':
+    #             {'roll': 0.0,
+    #             'pitch': 0.0,
+    #             'yaw': 0.785398,
+    #             },
+    #         },
+    #     'initial_noise':
+    #         {'x': 0.05,
+    #         'y': 0.05,
+    #         'z': 0.05,
+    #         },
+    #     'secondary_pose':
+    #         {'position':
+    #             {'x': 0.732,
+    #             'y': -0.816,
+    #             'z': 0.562,
+    #             },
+    #         'orientation':
+    #             {'roll': 0.0,
+    #             'pitch': 0.0,
+    #             'yaw': 0.785398,
+    #             },
+    #         },
+    #     'secondary_noise':
+    #         {'x': 0.0,
+    #         'y': 0.0,
+    #         'z': 0.0,
+    #         },
+    #     },
     }

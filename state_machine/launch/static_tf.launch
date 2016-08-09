@@ -1,0 +1,65 @@
+<launch>
+    <arg name="pi/2" value="1.5707963267948966" />
+    <arg name="w" value="-0.265" />
+    <arg name="w2" value="-0.565" />
+    <arg name="h1" value="0.265" />
+    <arg name="h2" value="0.495" />
+    <arg name="h3" value="0.725" />
+
+    <arg name="y" value="0.36"/>
+    <arg name="x" value="1.38"/>
+    <arg name="z" value="0.887"/>
+    <arg name="r" value="0"/>
+    <arg name="p" value="1.57"/>
+    <arg name="yaw" value="0"/>
+
+    <arg name="base_45neg" value="0 0 0 -0.785398 0 0" />
+    <arg name="base_shelf_pos" value="$(arg x) $(arg y) $(arg z) 0 0 0" />
+    <arg name="shelf" value="0 0 0 0 1.5707963267948966 0" />
+    <arg name="bin_A" value="0 0 0 0 0 0"/>
+    <arg name="bin_B" value="0 $(arg w) 0 0 0 0"/>
+    <arg name="bin_C" value="0 $(arg w2) 0 0 0 0"/>
+    <arg name="bin_D" value="$(arg h1) 0 0 0 0 0"/>
+    <arg name="bin_E" value="$(arg h1) $(arg w) 0 0 0 0"/>
+    <arg name="bin_F" value="$(arg h1) $(arg w2) 0 0 0 0"/>
+    <arg name="bin_G" value="$(arg h2) 0 0 0 0 0"/>
+    <arg name="bin_H" value="$(arg h2) $(arg w) 0 0 0 0"/>
+    <arg name="bin_I" value="$(arg h2) $(arg w2) 0 0 0 0"/>
+    <arg name="bin_J" value="$(arg h3) 0 0 0 0 0"/>
+    <arg name="bin_K" value="$(arg h3) $(arg w) 0 0 0 0"/>
+    <arg name="bin_L" value="$(arg h3) $(arg w2) 0 0 0 0"/>
+
+    <node pkg="tf" type="static_transform_publisher" name="base_45neg"
+        args="$(arg base_45neg) /base /base_45neg 10" />
+
+    <node pkg="tf" type="static_transform_publisher" name="base_shelf_pos"
+        args="$(arg base_shelf_pos) /base_45neg /base_shelf_pos 10" />
+
+    <node pkg="tf" type="static_transform_publisher" name="shelf"
+        args="$(arg shelf) /base_shelf_pos /shelf 10" />
+
+    <node pkg="tf" type="static_transform_publisher" name="bin_A"
+        args="$(arg bin_A) /shelf /bin_A 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_B"
+        args="$(arg bin_B) /shelf /bin_B 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_C"
+        args="$(arg bin_C) /shelf /bin_C 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_D"
+        args="$(arg bin_D) /shelf /bin_D 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_E"
+        args="$(arg bin_E) /shelf /bin_E 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_F"
+        args="$(arg bin_F) /shelf /bin_F 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_G"
+        args="$(arg bin_G) /shelf /bin_G 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_H"
+        args="$(arg bin_H) /shelf /bin_H 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_I"
+        args="$(arg bin_I) /shelf /bin_I 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_J"
+        args="$(arg bin_J) /shelf /bin_J 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_K"
+        args="$(arg bin_K) /shelf /bin_K 10" />
+    <node pkg="tf" type="static_transform_publisher" name="bin_L"
+        args="$(arg bin_L) /shelf /bin_L 10" />
+</launch>

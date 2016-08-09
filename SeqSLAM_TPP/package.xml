@@ -48,9 +48,15 @@
   <build_depend>moveit_core</build_depend>
   <build_depend>moveit_ros_planning</build_depend>
   <build_depend>moveit_ros_planning_interface</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
     <build_depend>message_generation</build_depend>
 
   <run_depend>std_msgs</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
   <run_depend>baxter_core_msgs</run_depend>
   <run_depend>cv_bridge</run_depend>
   <run_depend>roscpp</run_depend>

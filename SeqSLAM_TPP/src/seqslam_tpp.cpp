@@ -83,6 +83,7 @@ class SeqSLAM_TPP {
     ros::Publisher recordPub;
 
     ros::ServiceServer userInputRequestSrv;
+    ros::ServiceServer getImageSrv;
     ros::ServiceServer matlabSrv;
 
     sensor_msgs::ImagePtr watsonMsg;
@@ -151,9 +152,6 @@ class SeqSLAM_TPP {
     geometry_msgs::PoseStamped est_pose;
     geometry_msgs::PoseStamped servo_pose;
 
-    // moveit::planning_interface::MoveGroup::Plan plan;
-    // moveit::planning_interface::MoveGroup move_group;
-
     int servo_attempts;
     int time_id;
 
@@ -196,8 +194,10 @@ class SeqSLAM_TPP {
         //                          &SeqSLAM_TPP::servoCallback, this);
 
         // Start Services
-        // userInputRequestSrv = nh_.advertiseService(
-        //     "/seqslam_tpp/user_input_request", &userInputRequestCallback);
+        userInputRequestSrv = nh_.advertiseService(
+            "/seqslam_tpp/user_input_request", &SeqSLAM_TPP::userInputRequestCallback, this);
+        getImageSrv = nh_.advertiseService(
+            "/seqslam_tpp/get_image", &SeqSLAM_TPP::getImageCallback, this);
 
         // change matlabSub to service call
         ros::ServiceClient matlabSub = nh_.serviceClient<seqslam_tpp::MATLABSrv>("/seqslam_tpp/matlab_result");
@@ -272,6 +272,8 @@ class SeqSLAM_TPP {
 
         try {
             res.image = imgMsg;
+            res.roi = *(cv_bridge::CvImage(std_msgs::Header(), "bgr8", regionOfInterest)
+                                   .toImageMsg());
 
             res.bounding_box.top_left.x = pointA.x;
             res.bounding_box.top_left.y = pointA.y;
@@ -279,13 +281,40 @@ class SeqSLAM_TPP {
             res.bounding_box.bottom_right.y = pointB.y;
 
             res.message.data = "User selection returned";
+            res.success.data = true;
         } catch (...) {
             ROS_WARN("Service Error");
             res.message.data = "Service Error";
             res.success.data = false;
 
         }
+
         regionSelected = false;
+
+        // disable cv window callbacks
+        cv::setMouseCallback(HI_RES_WINDOW, no_click, this);
+        cv::setMouseCallback(LO_RES_WINDOW, no_click, this);
+
+        return true;
+
+    }
+
+    bool getImageCallback(seqslam_tpp::UserSelection::Request &req,
+                            seqslam_tpp::UserSelection::Response &res) {
+
+        try {
+            res.image = imgMsg;
+            res.scales = scale;
+
+            res.message.data = "Image returned";
+            res.success.data = true;
+        } catch (...) {
+            ROS_WARN("Service Error");
+            res.message.data = "Service Error";
+            res.success.data = false;
+
+        }
+
         return true;
 
     }
@@ -592,6 +621,12 @@ class SeqSLAM_TPP {
         pCvImage->image.copyTo(image);
     }
 
+    static void no_click(int event, int x, int y, int, void* this_) {
+        static_cast<SeqSLAM_TPP*>(this_)->no_click(event, x, y);
+    }
+
+    void no_click(int event, int x, int y) {}
+
     void mouse_click(int event, int x, int y) {
         switch (event) {
             case cv::EVENT_LBUTTONDOWN: {
@@ -652,6 +687,8 @@ class SeqSLAM_TPP {
                 secondaryImagePub.publish(pixlMsg);
 
                 scalePub.publish(scale);
+
+                regionSelected = true;
 
                 // secondaryImageScale = move_group.getCurrentPose().pose.position.z -
                 //             CAMERA_OFFSET - objectposz;

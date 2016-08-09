@@ -1,2 +1,8 @@
+sensor_msgs/Image initial_image
+sensor_msgs/Image roi
+sensor_msgs/Image secondary_image
+std_msgs/Float32MultiArray scales
 ---
-std_msgs/Float32MultiArray vector
+std_msgs/Bool success
+std_msgs/String message
+std_msgs/Float32MultiArray results

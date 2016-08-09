@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning
   moveit_ros_planning_interface
   message_generation
-)
+) 
 
 find_package(OpenCV REQUIRED)
 find_package(OpenMP)

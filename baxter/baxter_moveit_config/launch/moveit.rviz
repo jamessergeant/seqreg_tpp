@@ -6,9 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /MotionPlanning1
-        - /MotionPlanning1/Scene Geometry1
-        - /MotionPlanning1/Scene Robot1
-        - /MotionPlanning1/Planning Request1
+        - /TF1
         - /TF1/Frames1
       Splitter Ratio: 0.74256
     Tree Height: 289
@@ -26,7 +24,7 @@ Visualization Manager:
       Cell Size: 1
       Class: rviz/Grid
       Color: 160; 160; 164
-      Enabled: false
+      Enabled: true
       Line Style:
         Line Width: 0.03
         Value: Lines
@@ -39,7 +37,7 @@ Visualization Manager:
       Plane: XY
       Plane Cell Count: 10
       Reference Frame: torso
-      Value: false
+      Value: true
     - Class: moveit_rviz_plugin/MotionPlanning
       Enabled: true
       Move Group Namespace: ""
@@ -204,10 +202,6 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
           right_gripper:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
-          right_gripper_90:
             Alpha: 1
             Show Axes: false
             Show Trail: false
@@ -491,10 +485,6 @@ Visualization Manager:
             Alpha: 1
             Show Axes: false
             Show Trail: false
-          right_gripper_90:
-            Alpha: 1
-            Show Axes: false
-            Show Trail: false
           right_gripper_base:
             Alpha: 1
             Show Axes: false
@@ -593,8 +583,8 @@ Visualization Manager:
             Show Trail: false
             Value: true
         Robot Alpha: 0.5
-        Show Robot Collision: true
-        Show Robot Visual: false
+        Show Robot Collision: false
+        Show Robot Visual: true
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
@@ -660,8 +650,40 @@ Visualization Manager:
       Enabled: true
       Frame Timeout: 15
       Frames:
+        0.924:
+          Value: false
         All Enabled: false
         base:
+          Value: true
+        base_45neg:
+          Value: true
+        base_shelf_pos:
+          Value: true
+        base_shelf_pos_rot:
+          Value: true
+        bin_A:
+          Value: false
+        bin_B:
+          Value: false
+        bin_C:
+          Value: false
+        bin_D:
+          Value: false
+        bin_E:
+          Value: false
+        bin_F:
+          Value: false
+        bin_G:
+          Value: false
+        bin_H:
+          Value: false
+        bin_I:
+          Value: false
+        bin_J:
+          Value: false
+        bin_K:
+          Value: false
+        bin_L:
           Value: false
         collision_head_link_1:
           Value: false
@@ -679,16 +701,12 @@ Visualization Manager:
           Value: false
         left_arm_mount:
           Value: false
-        left_endpoint:
-          Value: true
-        left_endpoint_90:
-          Value: true
         left_gripper:
           Value: false
         left_gripper_base:
           Value: false
         left_hand:
-          Value: true
+          Value: false
         left_hand_accelerometer:
           Value: false
         left_hand_camera:
@@ -744,7 +762,7 @@ Visualization Manager:
         right_lower_shoulder:
           Value: false
         right_realsense:
-          Value: true
+          Value: false
         right_torso_itb:
           Value: false
         right_upper_elbow:
@@ -761,10 +779,12 @@ Visualization Manager:
           Value: false
         screen:
           Value: false
+        shelf:
+          Value: true
         sonar_ring:
           Value: false
         torso:
-          Value: true
+          Value: false
         world:
           Value: false
       Marker Scale: 0.5
@@ -775,6 +795,34 @@ Visualization Manager:
       Tree:
         world:
           base:
+            base_45neg:
+              base_shelf_pos:
+                base_shelf_pos_rot:
+                  shelf:
+                    bin_A:
+                      {}
+                    bin_B:
+                      {}
+                    bin_C:
+                      {}
+                    bin_D:
+                      {}
+                    bin_E:
+                      {}
+                    bin_F:
+                      {}
+                    bin_G:
+                      {}
+                    bin_H:
+                      {}
+                    bin_I:
+                      {}
+                    bin_J:
+                      {}
+                    bin_K:
+                      {}
+                    bin_L:
+                      {}
             collision_head_link_1:
               {}
             collision_head_link_2:
@@ -800,10 +848,6 @@ Visualization Manager:
                             left_wrist:
                               left_hand:
                                 left_gripper_base:
-                                  left_endpoint:
-                                    {}
-                                  left_endpoint_90:
-                                    {}
                                   left_gripper:
                                     {}
                                 left_hand_accelerometer:
@@ -1188,22 +1232,22 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 1.90478
+      Distance: 3.66789
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.863111
-        Y: -0.141289
-        Z: 2.54597e-05
+        X: -0.141806
+        Y: 0.196561
+        Z: 2.62346e-05
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 0.474797
+      Pitch: -0.400204
       Target Frame: base_link
       Value: XYOrbit (rviz)
-      Yaw: 5.64742
+      Yaw: 2.4688
     Saved: ~
 Window Geometry:
   Displays:
@@ -1219,5 +1263,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1680
-  X: 229
+  X: 220
   Y: 19

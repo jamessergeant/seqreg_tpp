@@ -1,0 +1,5 @@
+<launch>
+    <include file="$(find state_machine)/launch/static_tf.launch" />
+    <rosparam command="load" file="$(find state_machine)/parameters/shelf_layout.yaml"/>
+    <node name="state_machine" pkg="state_machine" type="state_machine.py" output="screen" cwd="node"/>
+</launch>
