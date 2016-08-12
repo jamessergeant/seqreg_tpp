@@ -1,10 +1,16 @@
 seqslam_tpp:
     {'robot': 'baxter',
-    'move_group': 'right_arm',
     'image_topic_1': '/usb_cam/image_raw',
     'image_topic_2': '/realsense/rgb/image_raw',
+    'limits': [0.03, 3, 15, 15], # LOOSE
+    #'limits': [0.01, 1, 5, 5], # TIGHT
     'ur5':
-        {'initial_pose':
+        {'frame_id': 'world',
+        'move_group': 'manipulator',
+        'sample_distance': 0,
+        'sample_direction': 'z',
+        'sample_noise': 0.1,
+        'initial_pose':
             {'position':
                 {'x': 0.0,
                 'y': -0.6,
@@ -41,7 +47,11 @@ seqslam_tpp:
         },
     'baxter':
         {'which_arm': 'right_arm',
+        'move_group': 'right_arm_realsense',
         'frame_id': 'base_45neg',
+        'sample_distance': 1.38,
+        'sample_direction': 'x',
+        'sample_noise': 0.1,
         'initial_pose':
             {'position':
                 {'x': 0.8,

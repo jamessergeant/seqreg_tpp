@@ -63,7 +63,6 @@ generate_messages(
   std_msgs
   sensor_msgs
   geometry_msgs
-  seqslam_tpp
 )
 
 ## Generate added messages and services with any dependencies listed here

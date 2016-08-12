@@ -15,6 +15,13 @@ from toggleBinFillersAndTote import ToggleBinFillersAndTote
 from generatePose import GeneratePose
 from userInputRequest import UserInputRequest
 from tf.transformations import quaternion_from_euler
+from getImage import GetImage
+from waitState import WaitState
+from seqslamState import SeqSLAMState
+from getRobotPose import GetRobotPose
+from calcScales import CalcScales
+from calcMovement import CalcMovement
+from checkLimits import CheckLimits
 
 from geometry_msgs.msg import Pose, Point, Quaternion
 
@@ -40,26 +47,27 @@ if __name__ == '__main__':
 
     robot_information = rospy.get_param('/seqslam_tpp/'+ which_robot)
 
+    limits = rospy.get_param('/seqslam_tpp/limits')
+
     initial_pose = paramToPose(robot_information['initial_pose'])
     secondary_pose = paramToPose(robot_information['secondary_pose'])
     frame_id = robot_information['frame_id']
+    sample_distance = robot_information['sample_distance']
+    sample_direction = robot_information['sample_direction']
 
     initial_noise = (robot_information['initial_noise']['x'],robot_information['initial_noise']['y'],robot_information['initial_noise']['z'])
     secondary_noise = (robot_information['secondary_noise']['x'],robot_information['secondary_noise']['y'],robot_information['secondary_noise']['z'])
 
+    sample_noise = robot_information['sample_noise']
+
+    movegroup = robot_information['move_group']
+
     if which_robot == 'baxter':
-        # determine which baxter arm is to be used
-        movegroup = robot_information['which_arm']
 
         if movegroup[:4] == 'left':
             limb = 'left_'
-            movegroup = 'left_arm_realsense'
         else:
             limb = 'right_'
-            movegroup = 'right_arm_realsense'
-
-    elif which_robot == 'ur5':
-        movegroup = 'manipulator'
 
     else:
         rospy.logwarn('Incorrect robot specified')
@@ -69,6 +77,12 @@ if __name__ == '__main__':
         output_keys=['data'])
 
     with sm_init:
+        sm_init.userdata['data'] = {}
+        sm_init.userdata['data']['max_count'] = 5
+        sm_init.userdata['data']['sample_distance'] = sample_distance
+        sm_init.userdata['data']['sample_direction'] = sample_direction
+        sm_init.userdata['data']['sample_noise'] = sample_noise
+        sm_init.userdata['data']['limits'] = limits
 
         sm_init.add('set_the_shelf_collision_scene_init',
             ToggleBinFillersAndTote(action='all_bins'),
@@ -80,8 +94,12 @@ if __name__ == '__main__':
                             'failed':'generate_initial'})
 
         sm_init.add('move_to_initial', MoveRobotState(movegroup=movegroup),
-               transitions={'succeeded':'user_input',
+               transitions={'succeeded':'get_robot_pose',
                             'failed': 'repeat','aborted':'repeat'})
+
+        sm_init.add('get_robot_pose',
+                GetRobotPose(movegroup=movegroup,frame_id=frame_id),
+                transitions={'succeeded':'user_input','failed':'repeat','aborted':'abort_next_trial'})
 
     sm_userinput = smach.StateMachine(outcomes=['repeat','positioning','abort_next_trial'],input_keys=['data'],
         output_keys=['data'])
@@ -92,32 +110,59 @@ if __name__ == '__main__':
 
         sm_userinput.add('generate_secondary',GeneratePose(pose=secondary_pose,noise=secondary_noise,frame_id=frame_id,tag='secondary_pose'),transitions={'succeeded':'move_to_secondary','failed':'generate_secondary'})
 
-        sm_init.add('move_to_secondary', MoveRobotState(movegroup=movegroup),
-            transitions={'succeeded':'repeat',
+        sm_userinput.add('move_to_secondary', MoveRobotState(movegroup=movegroup),
+            transitions={'succeeded':'wait_1',
                     'failed': 'repeat','aborted':'repeat'})
 
+        sm_userinput.add('wait_1',WaitState(2.0),transitions={'succeeded':'get_robot_pose','preempted':'positioning'})
 
-    # sm_positioning = smach.StateMachine(outcomes=['repeat','grasping',
-    #     'abort_next_object'],input_keys=['next_item_to_pick'],
-    #     output_keys=['googlenet'])
+        sm_userinput.add('get_robot_pose',
+                GetRobotPose(movegroup=movegroup,frame_id=frame_id,calculate_scales=True),
+                transitions={'succeeded':'calc_scales','failed':'repeat','aborted':'abort_next_trial'})
+
+        sm_userinput.add('calc_scales',
+                CalcScales(), transitions={'succeeded':'positioning','failed':'repeat','aborted':'abort_next_trial'})
+
+
+    sm_positioning = smach.StateMachine(outcomes=['repeat','servoing',
+        'abort_next_trial'],input_keys=['data'],
+        output_keys=['data'])
+
+    with sm_positioning:
+
+        sm_positioning.add('get_image', GetImage(tag='secondary_image'),
+            transitions={'succeeded':'seqslam','failed':'repeat','aborted':'abort_next_trial'})
+
+        sm_positioning.add('seqslam', SeqSLAMState(), transitions={'succeeded': 'check_limits', 'failed':'seqslam', 'aborted':'abort_next_trial'})
+
+        sm_positioning.add('check_limits', CheckLimits(), transitions={'incomplete': 'calculate_move', 'complete': 'abort_next_trial', 'aborted':'abort_next_trial'})
+
+        sm_positioning.add('calculate_move', CalcMovement(), transitions={'succeeded': 'move', 'failed':'calculate_move','aborted':'abort_next_trial'})
+
+        sm_positioning.add('move', MoveRobotState(movegroup=movegroup),
+            transitions={'succeeded':'wait_1',
+                    'failed': 'repeat','aborted':'abort_next_trial'})
+
+        sm_positioning.add('wait_1',WaitState(2.0),transitions={'succeeded':'repeat','preempted':'repeat'})
+
+    sm_servoing = smach.StateMachine(outcomes=['repeat','servoing',
+            'abort_next_trial'],input_keys=['next_item_to_pick'],
+            output_keys=['googlenet'])
+
+    with sm_servoing:
+
+        sm_servoing.add('get_image', GetImage(tag='servoing_image'), transitions={'succeeded':'repeat','failed':'repeat','aborted':'abort_next_trial'})
+
+
+
+
+    # sm_savedata = smach.StateMachine(outcomes=['repeat','servoing',
+    #         'abort_next_object'],input_keys=['next_item_to_pick'],
+    #         output_keys=['googlenet'])
     #
-    # with sm_positioning:
+    # with sm_savedata:
     #
-    #     sm_positioning.add('capture_image', UserInputRequest(action='user_request_secondary'), transitions={'succeeded':'seqslam','failed':'repeat'})
-    #
-    #     sm_positioning.add('seqslam', SeqSLAMState(), transitions={'succeeded': '', 'failed':''})
-    #
-    #     sm_positioning.add('calculate_move', CalculateMove(), transitions={'succeeded': '', 'failed':''})
-    #
-    #     # RelativePose or AbsolutePose?
-    #     sm_userinput.add('move_to_secondary', MoveRobotToRelativePose(movegroup=movegroup,
-    #                             pose_frame_id='/shelf',
-    #                             relative_pose=
-    #                                 Pose(position=Point(-0.10,0,0),
-    #                                     orientation=Quaternion(0,0,0,1)),
-    #                             velocity_scale=1.0),
-    #            transitions={'succeeded':'user_input',
-    #                         'failed': 'repeat'})
+    #     sm_savedata.add('get_image', GetImage(tag='servoing_image'), transitions={'succeeded':'repeat','failed':'repeat'})
 
 
     # TOP LEVEL STATE MACHINE
@@ -125,8 +170,10 @@ if __name__ == '__main__':
 
     with sm:
         sm.add('INITIAL', sm_init,  transitions={'repeat':'INITIAL','user_input':'USERINPUT','abort_next_trial':'ABORT'},remapping={'data':'data'})
-        sm.add('USERINPUT', sm_userinput, transitions={'repeat':'USERINPUT','positioning':'USERINPUT','abort_next_trial':'ABORT'},remapping={'data':'data'})
-        # sm.add('POSITIONING', sm_positioning, transitions={'repeat':'POSITIONING','grasping':'GRASPING','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('USERINPUT', sm_userinput, transitions={'repeat':'USERINPUT','positioning':'POSITIONING','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('POSITIONING', sm_positioning, transitions={'repeat':'POSITIONING','servoing':'SERVOING','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('SERVOING', sm_servoing, transitions={'repeat':'SERVOING','servoing':'SERVOING',
+                'abort_next_trial':'ABORT'},remapping={'data':'data'})
         # sm.add('SAVEDATA',sm_savedata,transitions={'repeat':'SAVEDATA','initial':'INITIAL','abort_next_trial':'ABORT'})
 
 

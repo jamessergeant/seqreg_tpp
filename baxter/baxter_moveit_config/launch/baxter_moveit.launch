@@ -4,9 +4,7 @@
   <arg name="rviz_config" default="$(find baxter_moveit_config)/launch/moveit.rviz" />
 
   <arg name="pipeline" default="ompl"/>
-
-
-  <!--  This just sets the arguments to the xacro/urdf/srdf files we need for this shit-->
+  
   <include file="$(find baxter_moveit_config)/launch/planning_context.launch">
     <arg name="load_robot_description" value="$(arg load_description)"/>
   </include>

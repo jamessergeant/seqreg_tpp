@@ -4,9 +4,8 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /Global Options1
         - /MotionPlanning1
-        - /TF1
+        - /MotionPlanning1/Planning Request1
         - /TF1/Frames1
       Splitter Ratio: 0.74256
     Tree Height: 289
@@ -36,7 +35,7 @@ Visualization Manager:
         Z: 0
       Plane: XY
       Plane Cell Count: 10
-      Reference Frame: torso
+      Reference Frame: base_45neg
       Value: true
     - Class: moveit_rviz_plugin/MotionPlanning
       Enabled: true
@@ -650,23 +649,19 @@ Visualization Manager:
       Enabled: true
       Frame Timeout: 15
       Frames:
-        0.924:
-          Value: false
         All Enabled: false
         base:
-          Value: true
+          Value: false
         base_45neg:
           Value: true
         base_shelf_pos:
-          Value: true
-        base_shelf_pos_rot:
-          Value: true
+          Value: false
         bin_A:
-          Value: false
+          Value: true
         bin_B:
-          Value: false
+          Value: true
         bin_C:
-          Value: false
+          Value: true
         bin_D:
           Value: false
         bin_E:
@@ -762,7 +757,7 @@ Visualization Manager:
         right_lower_shoulder:
           Value: false
         right_realsense:
-          Value: false
+          Value: true
         right_torso_itb:
           Value: false
         right_upper_elbow:
@@ -780,7 +775,7 @@ Visualization Manager:
         screen:
           Value: false
         shelf:
-          Value: true
+          Value: false
         sonar_ring:
           Value: false
         torso:
@@ -797,32 +792,31 @@ Visualization Manager:
           base:
             base_45neg:
               base_shelf_pos:
-                base_shelf_pos_rot:
-                  shelf:
-                    bin_A:
-                      {}
-                    bin_B:
-                      {}
-                    bin_C:
-                      {}
-                    bin_D:
-                      {}
-                    bin_E:
-                      {}
-                    bin_F:
-                      {}
-                    bin_G:
-                      {}
-                    bin_H:
-                      {}
-                    bin_I:
-                      {}
-                    bin_J:
-                      {}
-                    bin_K:
-                      {}
-                    bin_L:
-                      {}
+                shelf:
+                  bin_A:
+                    {}
+                  bin_B:
+                    {}
+                  bin_C:
+                    {}
+                  bin_D:
+                    {}
+                  bin_E:
+                    {}
+                  bin_F:
+                    {}
+                  bin_G:
+                    {}
+                  bin_H:
+                    {}
+                  bin_I:
+                    {}
+                  bin_J:
+                    {}
+                  bin_K:
+                    {}
+                  bin_L:
+                    {}
             collision_head_link_1:
               {}
             collision_head_link_2:
@@ -1220,7 +1214,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: base
+    Fixed Frame: base_45neg
     Frame Rate: 30
   Name: root
   Tools:
@@ -1244,10 +1238,10 @@ Visualization Manager:
         Z: 2.62346e-05
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: -0.400204
+      Pitch: 0.0147964
       Target Frame: base_link
       Value: XYOrbit (rviz)
-      Yaw: 2.4688
+      Yaw: 1.06381
     Saved: ~
 Window Geometry:
   Displays:
@@ -1263,5 +1257,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1680
-  X: 220
+  X: 193
   Y: 19

@@ -36,6 +36,7 @@ class UserInputRequest(smach.State):
                 if self.action == 'user_request_initial':
                     userdata['data']['initial_image'] = response.image
                     userdata['data']['roi'] = response.roi
+                    userdata['data']['roi_scale'] = response.roi_scale.data
                     userdata['data']['bounding_box'] = response.bounding_box
                 # if self.action == 'user_request_secondary':
                 #     userdata['data']['secondary_image'] = response.image
@@ -51,7 +52,7 @@ class UserInputRequest(smach.State):
 
             rospy.logwarn('[UserInputRequest]: ' + e.strerror)
 
-            if self.count < userdata['max_count']:
+            if self.count < userdata['data']['max_count']:
                 return 'failed'
             else:
                 self.count = 0

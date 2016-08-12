@@ -7,14 +7,15 @@ class GetImage(smach.State):
 
     count = 0
 
-    def __init__(self, action='get_image'):
+    def __init__(self, action='get_image',tag=None):
         smach.State.__init__(self, input_keys=['data'], output_keys=['data'],
-                             outcomes=['succeeded', 'failed','abort'])
+                             outcomes=['succeeded', 'failed','aborted'])
 
         # wait for the service to appear
         rospy.loginfo('Waiting for user_input_request service to come up ...')
 
         self.action = action
+        self.tag = tag
         srv_name = '/seqslam_tpp/get_image'
 
         try:
@@ -33,13 +34,8 @@ class GetImage(smach.State):
             response = self.service.call(UserSelectionRequest())
 
             if response.success.data:
-                if self.action == 'user_request_initial':
-                    userdata['data']['initial_image'] = response.image
-                    userdata['data']['roi'] = response.roi
-                    userdata['data']['bounding_box'] = response.bounding_box
-                # if self.action == 'user_request_secondary':
-                #     userdata['data']['secondary_image'] = response.image
-                #     userdata['data']['scales'] = response.scales
+                if self.action == 'get_image':
+                    userdata['data'][self.tag] = response.image
 
                 return 'succeeded'
 
@@ -51,8 +47,8 @@ class GetImage(smach.State):
 
             rospy.logwarn('[UserInputRequest]: ' + e.strerror)
 
-            if self.count < userdata['max_count']:
+            if self.count < userdata['data']['max_count']:
                 return 'failed'
             else:
                 self.count = 0
-                return 'abort'
+                return 'aborted'
