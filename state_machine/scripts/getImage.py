@@ -3,6 +3,8 @@ from rospy import ServiceException, ROSException
 import smach
 from seqslam_tpp.srv import UserSelection,UserSelectionRequest
 
+import cv_bridge
+
 class GetImage(smach.State):
 
     count = 0
@@ -16,6 +18,7 @@ class GetImage(smach.State):
 
         self.action = action
         self.tag = tag
+        self.cv_bridge = cv_bridge.CvBridge()
         srv_name = '/seqslam_tpp/get_image'
 
         try:
@@ -36,6 +39,10 @@ class GetImage(smach.State):
             if response.success.data:
                 if self.action == 'get_image':
                     userdata['data'][self.tag] = response.image
+                    if 'recorded_images' not in userdata['data'].keys():
+                        userdata['data']['recorded_images'] = []
+                    image = self.cv_bridge.imgmsg_to_cv2(response.image)
+                    userdata['data']['recorded_images'] = userdata['data']['recorded_images'] + [image,]
 
                 return 'succeeded'
 

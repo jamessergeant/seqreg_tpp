@@ -34,8 +34,13 @@ class GeneratePose(smach.State):
         userdata['data']['distance_estimate'] = userdata['data']['sample_distance'] + random.normalvariate(0.0,
                                                     userdata['data']['sample_noise'])
 
+        if 'output' not in userdata['data'].keys():
+            userdata['data']['output'] = {}
+        userdata['data']['output']['distance_estimate'] = userdata['data']['distance_estimate']
+
         userdata['goal_pose'] = pose
         userdata['goal_frame_id'] = self.frame_id
+        userdata['data']['goal_frame_id'] = self.frame_id
 
         print userdata
 

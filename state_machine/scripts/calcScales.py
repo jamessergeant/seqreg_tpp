@@ -31,12 +31,28 @@ class CalcScales(smach.State):
                                 'z':userdata['data']['poses'][1].position.z,
             }
 
-            scales = np.asarray([abs((position_initial[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])/userdata['data']['roi_scale']),
-                    abs(position_secondary[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])])
+            rospy.logwarn(userdata['data']['distance_estimate'])
+
+            print position_initial[userdata['data']['sample_direction']]
+            print abs(position_initial[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])
+            print userdata['data']['roi_scale']
+            print abs((position_initial[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])/userdata['data']['roi_scale'])
+            print position_secondary[userdata['data']['sample_direction']]
+            print abs(position_secondary[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])
+
+            scales = np.asarray([abs((position_initial[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])/userdata['data']['roi_scale']), abs(position_secondary[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])])
 
             rospy.loginfo(scales)
-            userdata['data']['scales'] = list(scales)
-            userdata['data']['relative_scales'] = list(scales / float(scales.max()))
+            if userdata['data']['servoing']:
+                userdata['data']['relative_scales'] = [1,1]
+            else:
+                userdata['data']['scales'] = list(scales)
+                userdata['data']['relative_scales'] = list(scales / float(scales.max()))
+                userdata['data']['estimated_offset'] = userdata['data']['scales'][0]
+                userdata['data']['servoing'] = True
+
+            rospy.logwarn(userdata['data']['scales'])
+            rospy.logwarn(userdata['data']['relative_scales'])
 
             return 'succeeded'
 

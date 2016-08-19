@@ -172,7 +172,7 @@ class SeqSLAM_TPP {
 
         // obtain parameters
         nh_.param("/seqslam_tpp/image_topic", image_topic,
-                  std::string("/usb_cam/image_raw"));
+                  std::string("/realsense/rgb/image_raw"));
         nh_.param("/seqslam_tpp/robot", robot_name, std::string("baxter"));
         nh_.param("/seqslam_tpp/move_group", move_group_name,
                   std::string("right_arm"));
@@ -317,93 +317,93 @@ class SeqSLAM_TPP {
         cv::waitKey(3);
     }
 
-    void matlabResponse(std_msgs::Float32MultiArray msg) {
-        // set servo flag
-        servoing = true;
-        ROS_INFO_STREAM("SeqSLAM information received from MATLAB");
-
-        // store scale, rot, Tx, Ty in usable form
-        // ROS_INFO_STREAM(msg.data);
-        std::vector<float> data;
-        data = msg.data;
-        Eigen::Map<Eigen::MatrixXf> mat(data.data(), msg.layout.dim[0].size,
-                                        msg.layout.dim[1].size);
-        // ROS_INFO_STREAM(mat);
-        // if the initial registration fails, print message, cancel servoing,
-        // make note
-        if (mat(0, 0) == 0) {
-            ROS_INFO_STREAM("Initial registration failed.");
-            servoing = false;
-            note << "Initial registration failed. ";
-            return;
-        }
-
-        ROS_INFO_STREAM("MATLAB returned: " << mat);
-        // move to estimated extension
-        arm_pose = move_group.getCurrentPose();
-        ROS_INFO_STREAM("secondaryImageScale: " << secondaryImageScale);
-        // ROS_INFO_STREAM("obj estimate: " << objectposz);
-        // objectposz = objectposz + (initialImageScale - initialImageScale*(1 +
-        // (mat(0,0)-1)*initialImageMult/secondImageMult)) * (float(color.cols) /
-        // regionOfInterest.cols);
-        // ROS_INFO_STREAM("obj estimate updated: " << objectposz);
-        ROS_INFO_STREAM("initialImageScale: " << initialImageScale / secondImageMult);
-        initialImageScale /= mat(0, 0);  // (1 + (mat(0,0)-1)*initialImageMult);
-        ROS_INFO_STREAM("initialImageScale updated: " << initialImageScale);
-        // arm_pose.pose.position.z = - objectposz + initialImageScale +
-        // CAMERA_OFFSET; // estimate vertical position based on returned scale
-        arm_pose.pose.position.z =
-            initialImageScale + CAMERA_OFFSET;  // estimate vertical position based on
-        // returned scale
-        ROS_INFO_STREAM("z: " << arm_pose.pose.position.z);
-        float dx = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
-                   (mat(0, 3) / color.cols);  // (estimate of width of image
-        // (width) contents) *
-        // (translation in pixels / image
-        // width in pixels)
-        float dy = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
-                   (mat(0, 2) / color.cols);
-        ROS_INFO_STREAM("dx: " << dx);
-        ROS_INFO_STREAM("dy: " << dy);
-        arm_pose.pose.position.x -= dx;
-        arm_pose.pose.position.y += dy;  // sign due to world axes
-
-        ROS_INFO_STREAM("Moving to estimated pose: \n" << arm_pose);
-
-        try {
-            if (!moveTo(arm_pose, 2, wait_time)) {
-                throw tf::TransformException(
-                    "Move to estimated position failed");
-            }
-        } catch (tf::TransformException ex) {
-            // if move unsuccessful, reset to pixl then watson positions, record
-            // to note,
-            note << ex.what();
-            ROS_INFO_STREAM(ex.what());
-            servoing = false;
-        }
-        sleep(wait_time);  // avoid vibration in image
-        if (!servoing) {
-            ROS_INFO_STREAM("Not servoing");
-        } else {
-            est_pose = move_group.getCurrentPose();
-            color.copyTo(pixl_est_image);
-            // closed_servo(); // PID-controlled close loop servoing
-            open_servo();  // OPEN LOOP "SERVOING"
-        }
-
-        std::cout << "Successful attempt [Y/n]? ";
-        std::cin >> operator_success;
-        servo_pose = move_group.getCurrentPose();
-        save_result();
-        servoing = false;
-
-        new_pixl();
-        reset_pixl = false;
-        new_watson();
-        new_estimate();
-        // reset_watson = true;
-    }
+    // void matlabResponse(std_msgs::Float32MultiArray msg) {
+    //     // set servo flag
+    //     servoing = true;
+    //     ROS_INFO_STREAM("SeqSLAM information received from MATLAB");
+    //
+    //     // store scale, rot, Tx, Ty in usable form
+    //     // ROS_INFO_STREAM(msg.data);
+    //     std::vector<float> data;
+    //     data = msg.data;
+    //     Eigen::Map<Eigen::MatrixXf> mat(data.data(), msg.layout.dim[0].size,
+    //                                     msg.layout.dim[1].size);
+    //     // ROS_INFO_STREAM(mat);
+    //     // if the initial registration fails, print message, cancel servoing,
+    //     // make note
+    //     if (mat(0, 0) == 0) {
+    //         ROS_INFO_STREAM("Initial registration failed.");
+    //         servoing = false;
+    //         note << "Initial registration failed. ";
+    //         return;
+    //     }
+    //
+    //     ROS_INFO_STREAM("MATLAB returned: " << mat);
+    //     // move to estimated extension
+    //     arm_pose = move_group.getCurrentPose();
+    //     ROS_INFO_STREAM("secondaryImageScale: " << secondaryImageScale);
+    //     // ROS_INFO_STREAM("obj estimate: " << objectposz);
+    //     // objectposz = objectposz + (initialImageScale - initialImageScale*(1 +
+    //     // (mat(0,0)-1)*initialImageMult/secondImageMult)) * (float(color.cols) /
+    //     // regionOfInterest.cols);
+    //     // ROS_INFO_STREAM("obj estimate updated: " << objectposz);
+    //     ROS_INFO_STREAM("initialImageScale: " << initialImageScale / secondImageMult);
+    //     initialImageScale /= mat(0, 0);  // (1 + (mat(0,0)-1)*initialImageMult);
+    //     ROS_INFO_STREAM("initialImageScale updated: " << initialImageScale);
+    //     // arm_pose.pose.position.z = - objectposz + initialImageScale +
+    //     // CAMERA_OFFSET; // estimate vertical position based on returned scale
+    //     arm_pose.pose.position.z =
+    //         initialImageScale + CAMERA_OFFSET;  // estimate vertical position based on
+    //     // returned scale
+    //     ROS_INFO_STREAM("z: " << arm_pose.pose.position.z);
+    //     float dx = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
+    //                (mat(0, 3) / color.cols);  // (estimate of width of image
+    //     // (width) contents) *
+    //     // (translation in pixels / image
+    //     // width in pixels)
+    //     float dy = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
+    //                (mat(0, 2) / color.cols);
+    //     ROS_INFO_STREAM("dx: " << dx);
+    //     ROS_INFO_STREAM("dy: " << dy);
+    //     arm_pose.pose.position.x -= dx;
+    //     arm_pose.pose.position.y += dy;  // sign due to world axes
+    //
+    //     ROS_INFO_STREAM("Moving to estimated pose: \n" << arm_pose);
+    //
+    //     try {
+    //         if (!moveTo(arm_pose, 2, wait_time)) {
+    //             throw tf::TransformException(
+    //                 "Move to estimated position failed");
+    //         }
+    //     } catch (tf::TransformException ex) {
+    //         // if move unsuccessful, reset to pixl then watson positions, record
+    //         // to note,
+    //         note << ex.what();
+    //         ROS_INFO_STREAM(ex.what());
+    //         servoing = false;
+    //     }
+    //     sleep(wait_time);  // avoid vibration in image
+    //     if (!servoing) {
+    //         ROS_INFO_STREAM("Not servoing");
+    //     } else {
+    //         est_pose = move_group.getCurrentPose();
+    //         color.copyTo(pixl_est_image);
+    //         // closed_servo(); // PID-controlled close loop servoing
+    //         open_servo();  // OPEN LOOP "SERVOING"
+    //     }
+    //
+    //     std::cout << "Successful attempt [Y/n]? ";
+    //     std::cin >> operator_success;
+    //     servo_pose = move_group.getCurrentPose();
+    //     save_result();
+    //     servoing = false;
+    //
+    //     new_pixl();
+    //     reset_pixl = false;
+    //     new_watson();
+    //     new_estimate();
+    //     // reset_watson = true;
+    // }
     //
     // void closed_servo() {
     //     ROS_INFO_STREAM("Begin closed-loop servoing");
@@ -494,116 +494,116 @@ class SeqSLAM_TPP {
     //     }
     // }
     //
-    void open_servo() {
-        ROS_INFO_STREAM("Begin open-loop servoing");
-
-        servo_success = false;
-
-        while (!servo_success) {
-            arm_pose = move_group.getCurrentPose();
-            // secondaryImageScale = arm_pose.pose.position.z - CAMERA_OFFSET -
-            // objectposz;
-            // ROS_INFO_STREAM("secondaryImageScale: " << secondaryImageScale);
-            // updateSendScale();
-
-            // servoMsg = cv_bridge::CvImage(std_msgs::Header(), "mono8",
-            // grey).toImageMsg();
-            servoMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", color)
-                           .toImageMsg();
-
-            scale.data = {1.0,1.0};
-            scalePub.publish(scale);
-            servoPub.publish(servoMsg);
-            reg_complete = false;
-
-            while (!reg_complete) {
-            }
-
-            if (reg_success) {
-                tf::Quaternion q(
-                    arm_pose.pose.orientation.x, arm_pose.pose.orientation.y,
-                    arm_pose.pose.orientation.z, arm_pose.pose.orientation.w);
-                tf::Matrix3x3 m(q);
-                double roll, pitch, yaw;
-                m.getRPY(roll, pitch, yaw);
-
-                arm_pose.pose.orientation =
-                    tf::createQuaternionMsgFromRollPitchYaw(
-                        roll, pitch, yaw - servo_rotation);
-                // ROS_INFO_STREAM("obj estimate: " << objectposz);
-                // objectposz = objectposz + (initialImageScale - initialImageScale*(1 +
-                // (servo_scale-1)*initialImageMult/secondImageMult)) * (float(color.cols) /
-                // regionOfInterest.cols);
-                // ROS_INFO_STREAM("obj estimate updated: " << objectposz);
-                ROS_INFO_STREAM("initialImageScale: " << initialImageScale);
-                initialImageScale /=
-                    servo_scale;  // (1 + (servo_scale-1)*initialImageMult/secondImageMult);
-                ROS_INFO_STREAM("initialImageScale updated: " << initialImageScale);
-                // arm_pose.pose.position.z = - objectposz + initialImageScale +
-                // CAMERA_OFFSET; // (estimate of object position in world)
-                arm_pose.pose.position.z =
-                    initialImageScale +
-                    CAMERA_OFFSET;  // (estimate of object position in world)
-                ROS_INFO_STREAM("z: " << arm_pose.pose.position.z);
-                float dx = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
-                           (-servo_x / color.cols);  // (estimate of width of
-                // image (width) contents)
-                // * (translation in pixels
-                // / image width in pixels)
-                float dy = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
-                           (servo_y / color.cols);
-                ROS_INFO_STREAM("dx: " << dx);
-                ROS_INFO_STREAM("dy: " << dy);
-                arm_pose.pose.position.x -= dx;
-                arm_pose.pose.position.y += dy;  // sign due to world axes
-
-                ROS_INFO_STREAM("Moving to servo position");
-                try {
-                    if (!moveTo(arm_pose, 2, wait_time)) {
-                        throw tf::TransformException(
-                            "Move to servo position failed");
-                    }
-                } catch (tf::TransformException ex) {
-                    note << ex.what();
-                    ROS_INFO_STREAM(ex.what());
-                    servo_success = true;
-                    return;
-                }
-
-                sleep(wait_time);
-            }
-        }
-    }
+    // void open_servo() {
+    //     ROS_INFO_STREAM("Begin open-loop servoing");
     //
-    void servoCallback(const std_msgs::Float32MultiArray msg) {
-        ROS_INFO_STREAM("SURF information received from MATLAB");
-        servo_data = msg.data;
-        Eigen::Map<Eigen::MatrixXf> mat(
-            servo_data.data(), msg.layout.dim[0].size, msg.layout.dim[1].size);
-        reg_success = true ? mat(0, 0) : false;
-        if (reg_success) {
-            ROS_INFO_STREAM("MATLAB returned: " << mat);
-            servo_scale = mat(0, 1);
-            servo_rotation = mat(0, 2);
-            servo_x = -mat(0, 4);
-            servo_y = mat(0, 3);
-            servo_attempts = 10;
-            if (abs(1 - servo_scale) < thresh[0] &&
-                abs(servo_rotation) < thresh[1] * M_PI / 180 &&
-                abs(servo_x) < thresh[2] && abs(servo_y) < thresh[3]) {
-                servo_success = true;
-                ROS_INFO_STREAM("Servoing successful");
-            }
-        } else {
-            servo_attempts -= 1;
-            ROS_INFO_STREAM("Failed servoing attempt");
-            if (servo_attempts == 0) {
-                servo_success = true;
-                ROS_INFO_STREAM("Servoing unsuccessful");
-            }
-        }
-        reg_complete = true;
-    }
+    //     servo_success = false;
+    //
+    //     while (!servo_success) {
+    //         arm_pose = move_group.getCurrentPose();
+    //         // secondaryImageScale = arm_pose.pose.position.z - CAMERA_OFFSET -
+    //         // objectposz;
+    //         // ROS_INFO_STREAM("secondaryImageScale: " << secondaryImageScale);
+    //         // updateSendScale();
+    //
+    //         // servoMsg = cv_bridge::CvImage(std_msgs::Header(), "mono8",
+    //         // grey).toImageMsg();
+    //         servoMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", color)
+    //                        .toImageMsg();
+    //
+    //         scale.data = {1.0,1.0};
+    //         scalePub.publish(scale);
+    //         servoPub.publish(servoMsg);
+    //         reg_complete = false;
+    //
+    //         while (!reg_complete) {
+    //         }
+    //
+    //         if (reg_success) {
+    //             tf::Quaternion q(
+    //                 arm_pose.pose.orientation.x, arm_pose.pose.orientation.y,
+    //                 arm_pose.pose.orientation.z, arm_pose.pose.orientation.w);
+    //             tf::Matrix3x3 m(q);
+    //             double roll, pitch, yaw;
+    //             m.getRPY(roll, pitch, yaw);
+    //
+    //             arm_pose.pose.orientation =
+    //                 tf::createQuaternionMsgFromRollPitchYaw(
+    //                     roll, pitch, yaw - servo_rotation);
+    //             // ROS_INFO_STREAM("obj estimate: " << objectposz);
+    //             // objectposz = objectposz + (initialImageScale - initialImageScale*(1 +
+    //             // (servo_scale-1)*initialImageMult/secondImageMult)) * (float(color.cols) /
+    //             // regionOfInterest.cols);
+    //             // ROS_INFO_STREAM("obj estimate updated: " << objectposz);
+    //             ROS_INFO_STREAM("initialImageScale: " << initialImageScale);
+    //             initialImageScale /=
+    //                 servo_scale;  // (1 + (servo_scale-1)*initialImageMult/secondImageMult);
+    //             ROS_INFO_STREAM("initialImageScale updated: " << initialImageScale);
+    //             // arm_pose.pose.position.z = - objectposz + initialImageScale +
+    //             // CAMERA_OFFSET; // (estimate of object position in world)
+    //             arm_pose.pose.position.z =
+    //                 initialImageScale +
+    //                 CAMERA_OFFSET;  // (estimate of object position in world)
+    //             ROS_INFO_STREAM("z: " << arm_pose.pose.position.z);
+    //             float dx = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
+    //                        (-servo_x / color.cols);  // (estimate of width of
+    //             // image (width) contents)
+    //             // * (translation in pixels
+    //             // / image width in pixels)
+    //             float dy = (initialImageScale * tan(HALF_HFOV * M_PI / 180) * 2) *
+    //                        (servo_y / color.cols);
+    //             ROS_INFO_STREAM("dx: " << dx);
+    //             ROS_INFO_STREAM("dy: " << dy);
+    //             arm_pose.pose.position.x -= dx;
+    //             arm_pose.pose.position.y += dy;  // sign due to world axes
+    //
+    //             ROS_INFO_STREAM("Moving to servo position");
+    //             try {
+    //                 if (!moveTo(arm_pose, 2, wait_time)) {
+    //                     throw tf::TransformException(
+    //                         "Move to servo position failed");
+    //                 }
+    //             } catch (tf::TransformException ex) {
+    //                 note << ex.what();
+    //                 ROS_INFO_STREAM(ex.what());
+    //                 servo_success = true;
+    //                 return;
+    //             }
+    //
+    //             sleep(wait_time);
+    //         }
+    //     }
+    // }
+    //
+    // void servoCallback(const std_msgs::Float32MultiArray msg) {
+    //     ROS_INFO_STREAM("SURF information received from MATLAB");
+    //     servo_data = msg.data;
+    //     Eigen::Map<Eigen::MatrixXf> mat(
+    //         servo_data.data(), msg.layout.dim[0].size, msg.layout.dim[1].size);
+    //     reg_success = true ? mat(0, 0) : false;
+    //     if (reg_success) {
+    //         ROS_INFO_STREAM("MATLAB returned: " << mat);
+    //         servo_scale = mat(0, 1);
+    //         servo_rotation = mat(0, 2);
+    //         servo_x = -mat(0, 4);
+    //         servo_y = mat(0, 3);
+    //         servo_attempts = 10;
+    //         if (abs(1 - servo_scale) < thresh[0] &&
+    //             abs(servo_rotation) < thresh[1] * M_PI / 180 &&
+    //             abs(servo_x) < thresh[2] && abs(servo_y) < thresh[3]) {
+    //             servo_success = true;
+    //             ROS_INFO_STREAM("Servoing successful");
+    //         }
+    //     } else {
+    //         servo_attempts -= 1;
+    //         ROS_INFO_STREAM("Failed servoing attempt");
+    //         if (servo_attempts == 0) {
+    //             servo_success = true;
+    //             ROS_INFO_STREAM("Servoing unsuccessful");
+    //         }
+    //     }
+    //     reg_complete = true;
+    // }
 
     void imageMsgToMat(const sensor_msgs::Image::ConstPtr msgImage,
                    cv::Mat& image) {

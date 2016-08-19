@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning
   moveit_ros_planning_interface
   message_generation
-) 
+)
 
 find_package(OpenCV REQUIRED)
 find_package(OpenMP)
@@ -147,6 +147,7 @@ include_directories(include
  install(PROGRAMS
    src/spawn.py
    src/rec_bag.py
+   src/test_node.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
 

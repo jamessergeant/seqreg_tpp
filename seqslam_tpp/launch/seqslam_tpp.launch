@@ -1,7 +1,5 @@
 <launch>
 
-    <param name="/seqslam_tpp/image_topic" value="/usb_cam/image_raw" />
-
     <rosparam command="load" file="$(find seqslam_tpp)/parameters/global.yaml"/>
 
     <node name="SeqSLAM_TPP" pkg="seqslam_tpp" type="seqslam_tpp" >

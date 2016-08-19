@@ -49,16 +49,24 @@ class GetRobotPose(smach.State):
             request.frame_id.data = self.frame_id
             response = self.service.call(request)
             rospy.loginfo(response.pose.pose)
+
             if response.success.data:
 
                 rospy.loginfo('[GetPose]: Pose in frame: ' + response.pose.header.frame_id + ' for movegroup: ' + self.movegroup)
 
                 if 'poses' not in userdata['data']:
                     userdata['data']['poses'] = []
-                elif len(userdata['data']['poses']) > 2:
-                    userdata['data']['poses'] = []
+                elif len(userdata['data']['poses']) == 2:
+                    userdata['data']['poses'].pop(1)
 
                 userdata['data']['poses'] = userdata['data']['poses'] + [response.pose.pose,]
+
+                if 'output' not in userdata['data'].keys():
+                    userdata['data']['output'] = {}
+                if 'recorded_poses' not in userdata['data']['output'].keys():
+                    userdata['data']['output']['recorded_poses'] = []
+
+                userdata['data']['output']['recorded_poses'] = userdata['data']['output']['recorded_poses'] + [response.pose.pose,]
 
                 rospy.loginfo(userdata['data']['poses'])
 

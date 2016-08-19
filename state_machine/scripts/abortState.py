@@ -4,16 +4,26 @@ import smach
 import smach_ros
 import threading
 
+import pickle as P
+
+import time
+
+current_milli_time = lambda: int(round(time.time() * 1000))
 
 class AbortState(smach.State):
-    def __init__(self, duration=1.0):
+    def __init__(self, path='/home/james/Dropbox/NASA/baxter_experiments'):
         smach.State.__init__(self, outcomes=['succeeded'], #, 'failed'],
-                             input_keys=['move_group']) # suctionState needs that one
+                             input_keys=['data']) # suctionState needs that one
+        self.path = path
         print "[AbortState]: Ready"
 
 
     # ==========================================================
     def execute(self, userdata):
-        # wait for the specified duration or until we are asked to preempt
-        rospy.signal_shutdown('[AbortState]: Who knows?')
+
+        # TODO save userdata
+        timestamp = current_milli_time()
+        userdata['data']['output']['poses'] = userdata['data']['poses']
+        P.dump(userdata['data']['output'], open('%s/%i.pkl' % (self.path,timestamp), 'wb'))
+
         return 'succeeded'

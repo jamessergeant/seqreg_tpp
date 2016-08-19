@@ -54,6 +54,8 @@ if __name__ == '__main__':
     frame_id = robot_information['frame_id']
     sample_distance = robot_information['sample_distance']
     sample_direction = robot_information['sample_direction']
+    camera_information = rospy.get_param('/seqslam_tpp/' + rospy.get_param('/seqslam_tpp/camera'))
+    method = rospy.get_param('/seqslam_tpp/method')
 
     initial_noise = (robot_information['initial_noise']['x'],robot_information['initial_noise']['y'],robot_information['initial_noise']['z'])
     secondary_noise = (robot_information['secondary_noise']['x'],robot_information['secondary_noise']['y'],robot_information['secondary_noise']['z'])
@@ -83,45 +85,45 @@ if __name__ == '__main__':
         sm_init.userdata['data']['sample_direction'] = sample_direction
         sm_init.userdata['data']['sample_noise'] = sample_noise
         sm_init.userdata['data']['limits'] = limits
+        sm_init.userdata['data']['camera_information'] = camera_information
+        sm_init.userdata['data']['servoing'] = False
 
         sm_init.add('set_the_shelf_collision_scene_init',
             ToggleBinFillersAndTote(action='all_bins'),
-               transitions={'succeeded':'generate_initial',
+               transitions={'succeeded':'lip_off',
                 'failed': 'repeat'})
+
+        sm_init.add('lip_off',
+                ToggleBinFillersAndTote(action='lip_off'),
+                   transitions={'succeeded':'generate_initial',
+                    'failed': 'repeat'})
 
         sm_init.add('generate_initial',GeneratePose(pose=initial_pose,noise=initial_noise,frame_id=frame_id,tag='initial_pose'),
                 transitions={'succeeded': 'move_to_initial',
                             'failed':'generate_initial'})
 
         sm_init.add('move_to_initial', MoveRobotState(movegroup=movegroup),
-               transitions={'succeeded':'get_robot_pose',
+               transitions={'succeeded':'user_input',
                             'failed': 'repeat','aborted':'repeat'})
-
-        sm_init.add('get_robot_pose',
-                GetRobotPose(movegroup=movegroup,frame_id=frame_id),
-                transitions={'succeeded':'user_input','failed':'repeat','aborted':'abort_next_trial'})
 
     sm_userinput = smach.StateMachine(outcomes=['repeat','positioning','abort_next_trial'],input_keys=['data'],
         output_keys=['data'])
 
     with sm_userinput:
 
-        sm_userinput.add('user_input_request', UserInputRequest(action='user_request_initial'), transitions={'succeeded':'generate_secondary','failed':'repeat','abort':'repeat'})
+        sm_userinput.add('user_input_request', UserInputRequest(action='user_request_initial'), transitions={'succeeded':'get_robot_pose','failed':'repeat','abort':'repeat'})
+
+        sm_userinput.add('get_robot_pose',
+            GetRobotPose(movegroup=movegroup,frame_id=frame_id),
+            transitions={'succeeded':'generate_secondary','failed':'repeat','aborted':'abort_next_trial'})
 
         sm_userinput.add('generate_secondary',GeneratePose(pose=secondary_pose,noise=secondary_noise,frame_id=frame_id,tag='secondary_pose'),transitions={'succeeded':'move_to_secondary','failed':'generate_secondary'})
 
-        sm_userinput.add('move_to_secondary', MoveRobotState(movegroup=movegroup),
+        sm_userinput.add('move_to_secondary', MoveRobotState(movegroup=movegroup + '_cartesian'),
             transitions={'succeeded':'wait_1',
                     'failed': 'repeat','aborted':'repeat'})
 
-        sm_userinput.add('wait_1',WaitState(2.0),transitions={'succeeded':'get_robot_pose','preempted':'positioning'})
-
-        sm_userinput.add('get_robot_pose',
-                GetRobotPose(movegroup=movegroup,frame_id=frame_id,calculate_scales=True),
-                transitions={'succeeded':'calc_scales','failed':'repeat','aborted':'abort_next_trial'})
-
-        sm_userinput.add('calc_scales',
-                CalcScales(), transitions={'succeeded':'positioning','failed':'repeat','aborted':'abort_next_trial'})
+        sm_userinput.add('wait_1',WaitState(2.0),transitions={'succeeded':'positioning','preempted':'positioning'})
 
 
     sm_positioning = smach.StateMachine(outcomes=['repeat','servoing',
@@ -131,9 +133,16 @@ if __name__ == '__main__':
     with sm_positioning:
 
         sm_positioning.add('get_image', GetImage(tag='secondary_image'),
-            transitions={'succeeded':'seqslam','failed':'repeat','aborted':'abort_next_trial'})
+            transitions={'succeeded':'get_robot_pose','failed':'repeat','aborted':'abort_next_trial'})
 
-        sm_positioning.add('seqslam', SeqSLAMState(), transitions={'succeeded': 'check_limits', 'failed':'seqslam', 'aborted':'abort_next_trial'})
+        sm_positioning.add('get_robot_pose',
+                GetRobotPose(movegroup=movegroup,frame_id=frame_id,calculate_scales=True),
+                transitions={'succeeded':'calc_scales','failed':'repeat','aborted':'abort_next_trial'})
+
+        sm_positioning.add('calc_scales',
+                CalcScales(), transitions={'succeeded':'seqslam','failed':'repeat','aborted':'abort_next_trial'})
+
+        sm_positioning.add('seqslam', SeqSLAMState(method=method), transitions={'succeeded': 'check_limits', 'failed':'seqslam', 'aborted':'abort_next_trial'})
 
         sm_positioning.add('check_limits', CheckLimits(), transitions={'incomplete': 'calculate_move', 'complete': 'abort_next_trial', 'aborted':'abort_next_trial'})
 
@@ -143,7 +152,7 @@ if __name__ == '__main__':
             transitions={'succeeded':'wait_1',
                     'failed': 'repeat','aborted':'abort_next_trial'})
 
-        sm_positioning.add('wait_1',WaitState(2.0),transitions={'succeeded':'repeat','preempted':'repeat'})
+        sm_positioning.add('wait_1',WaitState(5.0),transitions={'succeeded':'repeat','preempted':'repeat'})
 
     sm_servoing = smach.StateMachine(outcomes=['repeat','servoing',
             'abort_next_trial'],input_keys=['next_item_to_pick'],
@@ -152,17 +161,6 @@ if __name__ == '__main__':
     with sm_servoing:
 
         sm_servoing.add('get_image', GetImage(tag='servoing_image'), transitions={'succeeded':'repeat','failed':'repeat','aborted':'abort_next_trial'})
-
-
-
-
-    # sm_savedata = smach.StateMachine(outcomes=['repeat','servoing',
-    #         'abort_next_object'],input_keys=['next_item_to_pick'],
-    #         output_keys=['googlenet'])
-    #
-    # with sm_savedata:
-    #
-    #     sm_savedata.add('get_image', GetImage(tag='servoing_image'), transitions={'succeeded':'repeat','failed':'repeat'})
 
 
     # TOP LEVEL STATE MACHINE

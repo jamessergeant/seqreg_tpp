@@ -1,5 +1,6 @@
 <launch>
-    <include file="$(find state_machine)/launch/static_tf.launch" />
-    <rosparam command="load" file="$(find state_machine)/parameters/shelf_layout.yaml"/>
-    <node name="state_machine" pkg="state_machine" type="state_machine.py" output="screen" cwd="node"/>
+    <!-- <include file="$(find state_machine_seqslam)/launch/static_tf.launch" /> -->
+    <include file="$(find state_machine_seqslam)/launch/static_tf_base.launch" />
+    <rosparam command="load" file="$(find state_machine_seqslam)/parameters/shelf_layout.yaml"/>
+    <node name="state_machine_seqslam" pkg="state_machine_seqslam" type="state_machine.py" output="screen" cwd="node"/>
 </launch>

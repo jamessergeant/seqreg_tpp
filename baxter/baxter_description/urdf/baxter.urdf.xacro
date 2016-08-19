@@ -5,6 +5,9 @@
   <xacro:arg name="pedestal" default="true"/>
   <xacro:arg name="left_arm" default="false"/>
   <xacro:arg name="no_suction" default="false" />
+  <xacro:property name="pi" value="3.14159265359" />
+  <xacro:property name="tip_length" value="${0.06 + 0.02}" />
+
   <!-- Baxter Base URDF -->
   <xacro:include filename="$(find baxter_description)/urdf/baxter_base/baxter_base.urdf.xacro">
     <xacro:arg name="gazebo" value="${gazebo}"/>

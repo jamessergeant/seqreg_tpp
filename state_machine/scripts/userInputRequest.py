@@ -3,6 +3,8 @@ from rospy import ServiceException, ROSException
 import smach
 from seqslam_tpp.srv import UserSelection,UserSelectionRequest
 
+import cv_bridge
+
 class UserInputRequest(smach.State):
 
     count = 0
@@ -15,6 +17,7 @@ class UserInputRequest(smach.State):
         rospy.loginfo('Waiting for user_input_request service to come up ...')
 
         self.action = action
+        self.cv_bridge = cv_bridge.CvBridge()
         srv_name = '/seqslam_tpp/user_input_request'
 
         try:
@@ -38,9 +41,13 @@ class UserInputRequest(smach.State):
                     userdata['data']['roi'] = response.roi
                     userdata['data']['roi_scale'] = response.roi_scale.data
                     userdata['data']['bounding_box'] = response.bounding_box
-                # if self.action == 'user_request_secondary':
-                #     userdata['data']['secondary_image'] = response.image
-                #     userdata['data']['scales'] = response.scales
+                    if 'output' not in userdata['data'].keys():
+                        userdata['data']['output'] = {}
+                    if 'recorded_images' not in userdata['data']['output'].keys():
+                        userdata['data']['output']['recorded_images'] = []
+                    image = self.cv_bridge.imgmsg_to_cv2(response.image)
+                    userdata['data']['output']['recorded_images'] = userdata['data']['output']['recorded_images'] + [image,]
+                    userdata['data']['output']['roi'] = userdata['data']['roi']
 
                 return 'succeeded'
 

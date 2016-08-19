@@ -27,6 +27,8 @@ class CheckLimits(smach.State):
                 abs(userdata['data']['results'][-1][2]),
                 abs(userdata['data']['results'][-1][3])]
 
+            print results
+            print (np.asarray(results) > np.asarray(userdata['data']['limits']))
             if (np.asarray(results) > np.asarray(userdata['data']['limits'])).any():
                 return 'incomplete'
 

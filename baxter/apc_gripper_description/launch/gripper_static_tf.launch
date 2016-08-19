@@ -7,7 +7,7 @@
     <arg name="suction_cup_x_offset_90" default="0.050"/>
     <arg name="suction_cup_x_collision_offset_90" default="0.0"/>
     <arg name="suction_cup_x_delta_90" default="0.050"/> <!-- suction_cup_x_offset_90 + suction_cup_x_collision_offset_90 -->
-    <arg name="left_arm" default="true" />
+    <arg name="left_arm" default="false" />
 
     <!-- <arg name="realsense_link_pose" value="-0.09 0.00 0.02 0.0 -1.85 0.0"/> -->
 
