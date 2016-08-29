@@ -253,6 +253,7 @@ class SeqSLAM_TPP {
 
     bool userInputRequestCallback(seqslam_tpp::UserSelection::Request &req,
                             seqslam_tpp::UserSelection::Response &res) {
+
         cv::setMouseCallback(HI_RES_WINDOW, mouse_click, this);
         cv::setMouseCallback(LO_RES_WINDOW, pixl_click, this);
 
@@ -262,8 +263,8 @@ class SeqSLAM_TPP {
 
         try {
             res.image = imgMsg;
-            res.roi = *(cv_bridge::CvImage(std_msgs::Header(), "bgr8", regionOfInterest)
-                                   .toImageMsg());
+            res.roi = *(cv_bridge::CvImage(std_msgs::Header(),
+                            "bgr8", regionOfInterest).toImageMsg());
 
             res.roi_scale.data = Froi;
 
@@ -278,7 +279,6 @@ class SeqSLAM_TPP {
             ROS_WARN("Service Error");
             res.message.data = "Service Error";
             res.success.data = false;
-
         }
 
         regionSelected = false;
@@ -288,10 +288,9 @@ class SeqSLAM_TPP {
         cv::setMouseCallback(LO_RES_WINDOW, no_click, this);
 
         return true;
-
     }
 
-    bool getImageCallback(seqslam_tpp::UserSelection::Request &req,
+    bool getImageCallback(const seqslam_tpp::UserSelection::Request &req,
                             seqslam_tpp::UserSelection::Response &res) {
 
         try {
@@ -303,11 +302,8 @@ class SeqSLAM_TPP {
             ROS_WARN("Service Error");
             res.message.data = "Service Error";
             res.success.data = false;
-
         }
-
         return true;
-
     }
 
     void imageCallback(const sensor_msgs::Image::ConstPtr imageColor) {

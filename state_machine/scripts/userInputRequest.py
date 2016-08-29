@@ -46,8 +46,9 @@ class UserInputRequest(smach.State):
                     if 'recorded_images' not in userdata['data']['output'].keys():
                         userdata['data']['output']['recorded_images'] = []
                     image = self.cv_bridge.imgmsg_to_cv2(response.image)
+                    roi = self.cv_bridge.imgmsg_to_cv2(userdata['data']['roi'])
                     userdata['data']['output']['recorded_images'] = userdata['data']['output']['recorded_images'] + [image,]
-                    userdata['data']['output']['roi'] = userdata['data']['roi']
+                    userdata['data']['output']['roi'] = roi
 
                 return 'succeeded'
 

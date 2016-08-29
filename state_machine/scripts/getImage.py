@@ -39,10 +39,12 @@ class GetImage(smach.State):
             if response.success.data:
                 if self.action == 'get_image':
                     userdata['data'][self.tag] = response.image
-                    if 'recorded_images' not in userdata['data'].keys():
-                        userdata['data']['recorded_images'] = []
+                    if 'output' not in userdata['data'].keys():
+                        userdata['data']['output'] = {}
+                    if 'recorded_images' not in userdata['data']['output'].keys():
+                        userdata['data']['output']['recorded_images'] = []
                     image = self.cv_bridge.imgmsg_to_cv2(response.image)
-                    userdata['data']['recorded_images'] = userdata['data']['recorded_images'] + [image,]
+                    userdata['data']['output']['recorded_images'] = userdata['data']['output']['recorded_images'] + [image,]
 
                 return 'succeeded'
 

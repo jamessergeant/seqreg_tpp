@@ -22,6 +22,8 @@ from getRobotPose import GetRobotPose
 from calcScales import CalcScales
 from calcMovement import CalcMovement
 from checkLimits import CheckLimits
+from initData import InitData
+from toggleData import ToggleData
 
 from geometry_msgs.msg import Pose, Point, Quaternion
 
@@ -79,14 +81,8 @@ if __name__ == '__main__':
         output_keys=['data'])
 
     with sm_init:
-        sm_init.userdata['data'] = {}
-        sm_init.userdata['data']['max_count'] = 5
-        sm_init.userdata['data']['sample_distance'] = sample_distance
-        sm_init.userdata['data']['sample_direction'] = sample_direction
-        sm_init.userdata['data']['sample_noise'] = sample_noise
-        sm_init.userdata['data']['limits'] = limits
-        sm_init.userdata['data']['camera_information'] = camera_information
-        sm_init.userdata['data']['servoing'] = False
+
+        sm_init.add('init_data', InitData(sample_distance=sample_distance, sample_direction=sample_direction, sample_noise=sample_noise, limits=limits, camera_information=camera_information),transitions={'succeeded':'set_the_shelf_collision_scene_init','failed':'repeat'})
 
         sm_init.add('set_the_shelf_collision_scene_init',
             ToggleBinFillersAndTote(action='all_bins'),
@@ -144,15 +140,35 @@ if __name__ == '__main__':
 
         sm_positioning.add('seqslam', SeqSLAMState(method=method), transitions={'succeeded': 'check_limits', 'failed':'seqslam', 'aborted':'abort_next_trial'})
 
-        sm_positioning.add('check_limits', CheckLimits(), transitions={'incomplete': 'calculate_move', 'complete': 'abort_next_trial', 'aborted':'abort_next_trial'})
+        sm_positioning.add('check_limits', CheckLimits(), transitions={'incomplete': 'calculate_move', 'complete': 'calculate_move_complete', 'aborted':'abort_next_trial'})
 
+
+        ## LIMITS NOT MET
         sm_positioning.add('calculate_move', CalcMovement(), transitions={'succeeded': 'move', 'failed':'calculate_move','aborted':'abort_next_trial'})
 
         sm_positioning.add('move', MoveRobotState(movegroup=movegroup),
-            transitions={'succeeded':'wait_1',
-                    'failed': 'repeat','aborted':'abort_next_trial'})
+            transitions={'succeeded':'toggle_servoing_flag',
+                    'failed': 'abort_next_trial','aborted':'abort_next_trial'})
+
+        sm_positioning.add('toggle_servoing_flag', ToggleData(key='servoing',value=True),transitions={'succeeded': 'wait_1'})
 
         sm_positioning.add('wait_1',WaitState(5.0),transitions={'succeeded':'repeat','preempted':'repeat'})
+
+        ## LIMITS MET
+        sm_positioning.add('calculate_move_complete', CalcMovement(), transitions={'succeeded': 'move_complete', 'failed':'calculate_move_complete','aborted':'abort_next_trial'})
+
+        sm_positioning.add('move_complete', MoveRobotState(movegroup=movegroup),
+            transitions={'succeeded':'wait_1_complete',
+                    'failed': 'abort_next_trial','aborted':'abort_next_trial'})
+
+        sm_positioning.add('wait_1_complete',WaitState(5.0),transitions={'succeeded':'get_image_complete','preempted':'get_image_complete'})
+
+        sm_positioning.add('get_image_complete', GetImage(tag='secondary_image'),
+            transitions={'succeeded':'get_robot_pose_complete','failed':'repeat','aborted':'abort_next_trial'})
+
+        sm_positioning.add('get_robot_pose_complete',
+                GetRobotPose(movegroup=movegroup,frame_id=frame_id,calculate_scales=True),
+                transitions={'succeeded':'abort_next_trial','failed':'abort_next_trial','aborted':'abort_next_trial'})
 
     sm_servoing = smach.StateMachine(outcomes=['repeat','servoing',
             'abort_next_trial'],input_keys=['next_item_to_pick'],

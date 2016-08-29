@@ -10,22 +10,24 @@ import time
 
 current_milli_time = lambda: int(round(time.time() * 1000))
 
-class AbortState(smach.State):
-    def __init__(self, path='/home/james/Dropbox/NASA/baxter_experiments'):
+class ToggleData(smach.State):
+    def __init__(self, key=None, value=None):
         smach.State.__init__(self, outcomes=['succeeded'], #, 'failed'],
                              input_keys=['data'],output_keys=['data']) # suctionState needs that one
-        self.path = path
-        print "[AbortState]: Ready"
+        self.key = key
+        self.value = value
+        print "[ToggleData]: Ready"
 
 
     # ==========================================================
     def execute(self, userdata):
 
         try:
-            # TODO save userdata
-            timestamp = current_milli_time()
-            userdata['data']['output']['poses'] = userdata['data']['poses']
-            P.dump(userdata['data']['output'], open('%s/%i.pkl' % (self.path,timestamp), 'wb'))
+            if self.key is not None:
+                if self.value is not None:
+                    userdata['data'][self.key] = self.value
+                else:
+                    userdata['data'][self.key] = not userdata['data'][self.key]
 
             return 'succeeded'
         except:
