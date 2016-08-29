@@ -52,7 +52,7 @@ seqslam_tpp:
         {'which_arm': 'right_arm',
         'move_group': 'right_arm_realsense',
         'frame_id': 'base_45neg',
-        'sample_distance': 1.,
+        'sample_distance': 1.0,
         'sample_direction': 'x',
         'sample_noise': 0.02,
         'initial_pose':
@@ -68,9 +68,9 @@ seqslam_tpp:
                 },
             },
         'initial_noise':
-            {'x': 0.0,
-            'y': 0.0,
-            'z': 0.0,
+            {'x': 0.02,
+            'y': 0.02,
+            'z': 0.02,
             },
         'secondary_pose':
             {'position':
@@ -85,9 +85,9 @@ seqslam_tpp:
                 },
             },
         'secondary_noise':
-            {'x': 0.0,
-            'y': 0.0,
-            'z': 0.0,
+            {'x': 0.02,
+            'y': 0.02,
+            'z': 0.02,
             },
         },
     'realsense':
