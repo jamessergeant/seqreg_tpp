@@ -290,7 +290,7 @@ class SeqSLAM_TPP {
         return true;
     }
 
-    bool getImageCallback(const seqslam_tpp::UserSelection::Request &req,
+    bool getImageCallback(seqslam_tpp::UserSelection::Request &req,
                             seqslam_tpp::UserSelection::Response &res) {
 
         try {
