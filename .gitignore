@@ -1,1 +1,4 @@
 matlab_gen/
+*.caffemodel
+*.mat
+matlab/web
