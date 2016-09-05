@@ -1,6 +1,6 @@
 # SeqSLAM for Tool-Point Positioning
 
-[James Sergeant](james.sergeant@qut.edu.au)
+[James Sergeant](mailto:james.sergeant@qut.edu.au)
 
 ## MATLAB ROS Modification Steps
 1. `edit robotics.ros.ServiceServer`
