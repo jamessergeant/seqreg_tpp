@@ -1,5 +1,18 @@
 # SeqSLAM for Tool-Point Positioning
 
+[James Sergeant](james.sergeant@qut.edu.au)
+
+## MATLAB ROS Modification Steps
+1. `edit robotics.ros.ServiceServer`
+1. Add `obj.ResponseBuilder.setTimeout(120000);` after line 173.
+1. `rehash toolboxcache`
+1. Restart MATLAB.
+
+## Generate Custom ROS Service Message for MATLAB
+1. Install [ROS Custom Message Generator](http://au.mathworks.com/help/robotics/ug/install-robotics-system-toolbox-support-packages.html)
+1. `rosgenmsg('path/to/seqslam_tpp')`
+1. Follow instructions provided by the script.
+
 ## Simulation w/ UR5
 Open `. baxter.sh` and run each of the following commands in separate terminals.
 ```
