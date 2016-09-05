@@ -1,0 +1,17 @@
+<launch>
+
+    <!-- <arg name="base_45neg" value="0 0 0 -0.785398 0 0" /> -->
+    <arg name="base_trans" value="0.05 -0.28 0 0 0 0" />
+    <!-- <arg name="base_45neg" value="0 0 0 -0.523225 0 0" /> -->
+    <arg name="base_45neg" value="0 0 0 -0.785398 0 0" />
+
+
+    <node pkg="tf" type="static_transform_publisher" name="base_trans"
+        args="$(arg base_trans) /base /base_trans 10" />
+
+    <node pkg="tf" type="static_transform_publisher" name="base_45neg"
+        args="$(arg base_45neg) /base_trans /base_45neg 10" />
+
+    <node pkg="tf" type="static_transform_publisher" name="right_realsense"
+        args="0 0 0 0 0 0 /camera_rgb_frame /right_realsense 10" />
+</launch>

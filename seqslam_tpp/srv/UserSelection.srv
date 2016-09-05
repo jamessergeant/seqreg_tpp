@@ -1,0 +1,8 @@
+---
+std_msgs/String message
+std_msgs/Bool success
+sensor_msgs/Image image
+sensor_msgs/Image roi
+std_msgs/Float32 roi_scale
+seqslam_tpp/BoundingBox bounding_box
+std_msgs/Float32MultiArray scales

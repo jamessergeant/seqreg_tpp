@@ -1,0 +1,97 @@
+seqslam_tpp:
+    {'robot': 'baxter',
+    'method': 'ros_seqslam',
+    # 'image_topic': '/cameras/left_hand_camera/image',
+    'image_topic': '/realsense/rgb/image_raw',
+    'image_topic_2': '/realsense/rgb/image_raw',
+    'camera': 'realsense',
+    'limits': [0.03, 3, 15, 15], # LOOSE
+    # 'limits': [0.01, 1, 5, 5], # TIGHT
+    'ur5':
+        {'frame_id': 'world',
+        'move_group': 'manipulator',
+        'sample_distance': 0,
+        'sample_direction': 'z',
+        'sample_noise': 0.1,
+        'initial_pose':
+            {'position':
+                {'x': 0.0,
+                'y': -0.6,
+                'z': 1.5,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 1.57079632679,
+                'yaw': 1.57079632679,
+                },
+            },
+        'initial_noise':
+            {'x': 0.05,
+            'y': 0.05,
+            'z': 0.05,
+            },
+        'secondary_pose':
+            {'position':
+                {'x': 0.0,
+                'y': -0.6,
+                'z': 0.7,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 1.57079632679,
+                'yaw': 1.57079632679,
+                },
+            },
+        'secondary_noise':
+            {'x': 0.1,
+            'y': 0.05,
+            'z': 0.15,
+            },
+        },
+    'baxter':
+        {'which_arm': 'right_arm',
+        'move_group': 'right_arm_realsense',
+        'frame_id': 'base_45neg',
+        'sample_distance': 1.0,
+        'sample_direction': 'x',
+        'sample_noise': 0.02,
+        'initial_pose':
+            {'position':
+                {'x': 0.632,
+                'y': 0.372,
+                'z': 0.520,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 0.0,
+                'yaw': 0.0,
+                },
+            },
+        'initial_noise':
+            {'x': 0.02,
+            'y': 0.02,
+            'z': 0.02,
+            },
+        'secondary_pose':
+            {'position':
+                {'x': 0.732,
+                'y': 0.372,
+                'z': 0.520,
+                },
+            'orientation':
+                {'roll': 0.0,
+                'pitch': 0.0,
+                'yaw': 0.0,
+                },
+            },
+        'secondary_noise':
+            {'x': 0.02,
+            'y': 0.02,
+            'z': 0.02,
+            },
+        },
+    'realsense':
+        {'half_hfov': 34,
+        'half_vfov': 20.75,
+        },
+    }
