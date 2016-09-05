@@ -15,7 +15,7 @@ class SeqSLAMState(smach.State):
 
     count = 0
 
-    def __init__(self, action='initial_position',method='ros_seqslam',save_msg=True):
+    def __init__(self, action='initial_position',method='ros_seqslam',save_msg=False):
         smach.State.__init__(self, input_keys=['data'], output_keys=['data'],
                              outcomes=['succeeded','failed','aborted'])
 
