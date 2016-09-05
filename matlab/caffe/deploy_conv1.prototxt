@@ -1,0 +1,30 @@
+name: "CaffeNet"
+input: "data"
+input_dim: 1
+input_dim: 1
+input_dim: 28
+input_dim: 28
+force_backward: true
+layer {
+  name: "conv1_g"
+  type: "Convolution"
+  bottom: "data"
+  top: "conv1_c"
+  convolution_param {
+    num_output: 96
+    kernel_size: 11
+    stride: 1
+  }
+}
+layer {
+  name: "relu1"
+  type: "ReLU"
+  bottom: "conv1_c"
+  top: "conv1"
+}
+layer {
+  name: "absval"
+  type: "AbsVal"
+  bottom: "conv1_c"
+  top: "conv1_a"
+}
