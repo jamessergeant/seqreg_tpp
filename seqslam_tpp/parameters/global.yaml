@@ -3,7 +3,9 @@ seqslam_tpp:
     'method': 'ros_seqslam',
     # 'image_topic': '/cameras/left_hand_camera/image',
     'image_topic': '/realsense/rgb/image_raw',
-    'image_topic_2': '/realsense/rgb/image_raw',
+    # 'image_topic': '/image_raw',
+    # 'image_topic_2': '/realsense/rgb/image_raw',
+    # 'camera': 'usb_cam',
     'camera': 'realsense',
     'limits': [0.03, 3, 15, 15], # LOOSE
     # 'limits': [0.01, 1, 5, 5], # TIGHT
@@ -58,8 +60,8 @@ seqslam_tpp:
         'initial_pose':
             {'position':
                 {'x': 0.632,
-                'y': 0.372,
-                'z': 0.520,
+                'y': -0.25,
+                'z': 0.110,
                 },
             'orientation':
                 {'roll': 0.0,
@@ -68,15 +70,18 @@ seqslam_tpp:
                 },
             },
         'initial_noise':
-            {'x': 0.02,
-            'y': 0.02,
-            'z': 0.02,
+            # {'x': 0.02,
+            # 'y': 0.02,
+            # 'z': 0.02,
+                {'x': 0.0,
+                'y': 0.0,
+                'z': 0.0,
             },
         'secondary_pose':
             {'position':
                 {'x': 0.732,
-                'y': 0.372,
-                'z': 0.520,
+                'y': -0.25,
+                'z': 0.110,
                 },
             'orientation':
                 {'roll': 0.0,
@@ -91,6 +96,10 @@ seqslam_tpp:
             },
         },
     'realsense':
+        {'half_hfov': 34,
+        'half_vfov': 20.75,
+        },
+    'usb_cam':
         {'half_hfov': 34,
         'half_vfov': 20.75,
         },

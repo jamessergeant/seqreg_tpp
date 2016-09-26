@@ -7,11 +7,11 @@
 
 
     <node pkg="tf" type="static_transform_publisher" name="base_trans"
-        args="$(arg base_trans) /base /base_trans 10" />
+        args="$(arg base_trans) /base /base_trans 100" />
 
     <node pkg="tf" type="static_transform_publisher" name="base_45neg"
-        args="$(arg base_45neg) /base_trans /base_45neg 10" />
+        args="$(arg base_45neg) /base_trans /base_45neg 100" />
 
     <node pkg="tf" type="static_transform_publisher" name="right_realsense"
-        args="0 0 0 0 0 0 /camera_rgb_frame /right_realsense 10" />
+        args="0 0 0 0 0 0 /camera_rgb_frame /right_realsense 100" />
 </launch>

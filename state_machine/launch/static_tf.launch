@@ -6,13 +6,14 @@
     <arg name="h2" value="0.495" />
     <arg name="h3" value="0.725" />
 
-    <arg name="y" value="0.36"/>
+    <arg name="y" value="0.16"/>
     <arg name="x" value="1.38"/>
     <arg name="z" value="0.887"/>
     <arg name="r" value="0"/>
     <arg name="p" value="1.57"/>
     <arg name="yaw" value="0"/>
 
+    <arg name="base_trans" value="0.05 -0.28 0 0 0 0" />
     <arg name="base_45neg" value="0 0 0 -0.785398 0 0" />
     <arg name="base_shelf_pos" value="$(arg x) $(arg y) $(arg z) 0 0 0" />
     <arg name="shelf" value="0 0 0 0 1.5707963267948966 0" />
@@ -29,11 +30,17 @@
     <arg name="bin_K" value="$(arg h3) $(arg w) 0 0 0 0"/>
     <arg name="bin_L" value="$(arg h3) $(arg w2) 0 0 0 0"/>
 
+    <node pkg="tf" type="static_transform_publisher" name="base_45neg_orig"
+        args="$(arg base_45neg) /base /base_45neg_orig 10" />
+
+    <node pkg="tf" type="static_transform_publisher" name="base_trans"
+        args="$(arg base_trans) /base /base_trans 100" />
+
     <node pkg="tf" type="static_transform_publisher" name="base_45neg"
-        args="$(arg base_45neg) /base /base_45neg 10" />
+        args="$(arg base_45neg) /base_trans /base_45neg 100" />
 
     <node pkg="tf" type="static_transform_publisher" name="base_shelf_pos"
-        args="$(arg base_shelf_pos) /base_45neg /base_shelf_pos 10" />
+        args="$(arg base_shelf_pos) /base_45neg_orig /base_shelf_pos 10" />
 
     <node pkg="tf" type="static_transform_publisher" name="shelf"
         args="$(arg shelf) /base_shelf_pos /shelf 10" />
