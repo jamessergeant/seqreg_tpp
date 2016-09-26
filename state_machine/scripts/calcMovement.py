@@ -53,7 +53,8 @@ class CalcMovement(smach.State):
 
             current_offset = userdata['data']['distance_estimate'] - current_position
 
-            meters_per_pixel = 2 * (current_offset / userdata['data']['initial_image'].width) * math.tan(userdata['data']['camera_information']['half_hfov'] * math.pi / 180)
+            # 400 used as max width in the seqslam algorithm
+            meters_per_pixel = 2 * (current_offset / 400) * math.tan(userdata['data']['camera_information']['half_hfov'] * math.pi / 180)
 
             rospy.logwarn("[CalcMovement]: meters/pixel %0.5f" % meters_per_pixel)
 
