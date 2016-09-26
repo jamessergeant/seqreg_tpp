@@ -8,18 +8,16 @@ classdef NASApipeline < handle
         curr_case
         weights
         weights_col
-        pool
         tform
         tform_status
+        cnn_window = 0.02
         network = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/deploy_conv1.prototxt'
         network_col = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/deploy_conv1_3.prototxt'
         model = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/imagenet_grey_weights.caffemodel'
         model_col = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/bvlc_reference_caffenet.caffemodel'
-        cnn_window = 0.02
         method
         patch_norm = 1
         maxdim = 400
-        last_test_samples
         qsf = 1          % ? scale factor?
         step_size = 20   % step size
         seq_len = 100    % seq length
@@ -48,57 +46,32 @@ classdef NASApipeline < handle
         fixedPoints
         movingPoints
         search_fract = 0.1; % region of image to use
-%             search_fract = 0.9;
         xres
         yres
         border = 0.1;   % ignore border cases
-%         border = 0;   % ignore border cases
-        % num_steps = 20;
         num_steps = 5; %no. trajectory steps
-        peak_exclude = 10; % region to ignore other "peaks"
-        num_peaks = 1;
         visuals = false
         strongest_match = 0; % initialise strogest match, not actually used?
         save_dir = '/home/james/Dropbox/NASA/SeqSLAM/'
         ros_gifdir = '/home/james/Dropbox/NASA/baxter_experiments/gifs/'
         gifdir = '/home/james/datasets/pixl-watson/'
-        test_corr
-        test_corr_nss
         results = {}
         test_totals
         type_table
         matchedOriginal
         matchedDistorted
-        imageWatsonSub
-        watsonMsg
-        watsonImage
+        InitialImage
         watsonOrig
-        imagePixlSub
-        scaleSub
-        pixlMsg
         pixlImage
-        matlabPub
-        matlabMsg
-        test
         ros_scale
-        imageServoSub
-        servoPub
-        servoMsg
         curr_trial
         seqslamSrv
-        seqslamServoSrv
-        image1_sub
-        image2_sub
-        scales_sub
-        results_pub
-        seqslam_sub
         save_images = false
-        save_ppos
         gpu_locnorm
         gpu_out1
         gpu_out2
         gpu_rgb2gray
-        gpu_processing = true
+        gpu_processing = false
         gpu_processing_fail = false
         gpu_devel_mode = false
         gpu_trajshift
@@ -132,15 +105,14 @@ classdef NASApipeline < handle
         min_pts_used
         min_pts_required = 4;
         min_fraction_pts_used = 0.1
-        baxter_trials = {}
         curr_seq_len
         curr_step_size
         gif_visuals = false
         pixl_information
         watson_information
-        raw_pixl_images
-        raw_watson_images
         curr_ps
+        ros_initialised
+        results_publisher
     end
 %%
     methods
@@ -172,9 +144,12 @@ classdef NASApipeline < handle
             close all
             rng('shuffle');
             
+            obj.gpu_processing = false;
+            
             for i=1:gpuDeviceCount
                 if parallel.gpu.GPUDevice.isAvailable(i)
                     obj.GPU = parallel.gpu.GPUDevice.getDevice(i);
+                    obj.gpu_processing = true;
                     break;
                 end
             end
@@ -182,64 +157,68 @@ classdef NASApipeline < handle
             % initialise ros and services
             obj.init_ros();
             
-            ptx_path = '/home/james/co/SeqSLAM_GPU/SeqSLAM_kernel.ptx';
-            cu_path = '/home/james/co/SeqSLAM_GPU/SeqSLAM_kernel.cu';
-            
-            obj.block_size1 = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
-            obj.block_size_num_steps = floor(sqrt(obj.GPU.MaxThreadsPerBlock / obj.num_steps));
-            
-            obj.gpu_locnorm = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10local_normPKfPfiiif');
-            obj.gpu_locnorm.ThreadBlockSize = [obj.block_size1 obj.block_size1];            
-            
-            obj.gpu_rgb2gray = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z18bgr_to_gray_kernelPKhPfiiii');
-            obj.gpu_rgb2gray.ThreadBlockSize = [obj.block_size1 obj.block_size1];
+            if obj.gpu_processing
+                ptx_path = '/home/james/co/SeqSLAM_GPU/SeqSLAM_kernel.ptx';
+                cu_path = '/home/james/co/SeqSLAM_GPU/SeqSLAM_kernel.cu';
 
-            obj.gpu_trajshift = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z19trajectory_shiftingPKfPfPKiS3_ii');
-            obj.gpu_trajshift.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
+                obj.block_size1 = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
+                obj.block_size_num_steps = floor(sqrt(obj.GPU.MaxThreadsPerBlock / obj.num_steps));
+
+                obj.gpu_locnorm = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10local_normPKfPfiiif');
+                obj.gpu_locnorm.ThreadBlockSize = [obj.block_size1 obj.block_size1];            
+
+%                 obj.gpu_rgb2gray = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z18bgr_to_gray_kernelPKhPfiiii');
+%                 obj.gpu_rgb2gray.ThreadBlockSize = [obj.block_size1 obj.block_size1];
+% 
+%                 obj.gpu_trajshift = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z19trajectory_shiftingPKfPfPKiS3_ii');
+%                 obj.gpu_trajshift.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
+% 
+%                 obj.gpu_normxcorr2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10normXcorr2PKfPfS0_S0_S0_iii');
+%                 obj.gpu_normxcorr2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
+% 
+%                 obj.gpu_sad2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z4sad2PKfPfS0_Piiii');
+%                 obj.gpu_sad2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
+
+                wait(obj.GPU);
+                
+                % set caffe to use gpu also
+                caffe.set_mode_gpu();
+            end
             
-            obj.gpu_normxcorr2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10normXcorr2PKfPfS0_S0_S0_iii');
-            obj.gpu_normxcorr2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
-            
-            obj.gpu_sad2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z4sad2PKfPfS0_Piiii');
-%             obj.gpu_sad2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z9sad2_fastPfS_S_Piiii');
-            obj.gpu_sad2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
-            
-            wait(obj.GPU);
             % initialise variables
             obj.ps = 20 * obj.qsf;  % Radius of patch to be correlated
             obj.nps = 5 * obj.qsf;	% Patch normalization range
 
-            % intialise caffe
-            caffe.set_mode_gpu();
+            % intialise caffe            
             obj.load_model();
             
+            obj.results_publisher = ResultsPublisher(obj);
 
         end % end init
 %%
         function init_ros(obj)
             
-            rosinit;
+            if obj.ros_initialised
+                rosshutdown;                
+            end
             
+            rosinit;
+            obj.ros_initialised = true;            
             obj.seqslamSrv = rossvcserver('/seqslam_tpp/seqslam','seqslam_tpp/MATLABSrv',@obj.seqslamCallback);
             
         end
+        
 %%
-        function del_sub(obj)
-            close all
-            clear obj.seqslamSrv
-            clear obj.seqslamServoSrv
-        end
-
         % accepts custom srv type
         function res = seqslamCallback(obj,~,req,res)
             
             fprintf('%s started\n',req.Method.Data);
 
-            [obj.watsonImage,~] = readImage(req.InitialImage);
+            [obj.InitialImage,~] = readImage(req.InitialImage);
             
             obj.save_string = num2str(req.SecondaryImage.Header.Stamp.Sec);
 
-            obj.watsonOrig = obj.watsonImage;
+            obj.watsonOrig = obj.InitialImage;
             
             obj.ros_scale = req.Scales.Data';
 
@@ -251,8 +230,7 @@ classdef NASApipeline < handle
             
             if obj.visuals                
                 close all
-                imshowpair(obj.watsonImage,obj.pixlImage,'method','montage');
-%                 pause
+                imshowpair(obj.InitialImage,obj.pixlImage,'method','montage');
             end
             
             % perform image registration
@@ -287,121 +265,9 @@ classdef NASApipeline < handle
                 imshowpair(obj.im1_registered,obj.im2_registered)
             end
             
-            obj.baxter_trials(end+1).request = req;
-            obj.baxter_trials(end).response = res;
-            obj.baxter_trials(end).(req.Method.Data) = struct();
-            obj.baxter_trials(end).(req.Method.Data).tform = obj.tform;
-            obj.baxter_trials(end).(req.Method.Data).tform_status = obj.tform_status;
-            obj.baxter_trials(end).(req.Method.Data).scaleRecovered = scaleRecovered;
-            obj.baxter_trials(end).(req.Method.Data).thetaRecovered = thetaRecovered;
-            obj.baxter_trials(end).(req.Method.Data).match = res.Success.Data;
-            obj.baxter_trials(end).(req.Method.Data).im1_registered = obj.im1_registered;
-            obj.baxter_trials(end).(req.Method.Data).im2_registered = obj.im2_registered;
-            
             obj.save_prog();
 
         end
-%%
-        function rand_pixl(obj)
-        % find random PIXL only case
-
-            for i = 1:randi(10)
-                obj.curr_case = randi(length(obj.test_cases));
-                while ~obj.test_cases(obj.curr_case).Image1.mcc || ...
-                        ~obj.test_cases(obj.curr_case).Image2.mcc
-                    obj.curr_case = randi(length(obj.test_cases));
-                end
-            end
-
-            fprintf('New case: %i\n', obj.curr_case);
-
-        end % rand_mcc
-%%
-        function rand_multi(obj)
-        % find random multimodal case
-
-            for i = 1:randi(10)
-                obj.curr_case = randi(length(obj.test_cases));
-                while ~obj.test_cases(obj.curr_case).differences.multimodal
-                    obj.curr_case = randi(length(obj.test_cases));
-                end
-            end
-
-            fprintf('New case: %i\n', obj.curr_case);
-
-        end % rand_multi
-%%
-        function rand_scale(obj)
-        % find random scale difference case
-
-            for i = 1:randi(10)
-                obj.curr_case = randi(length(obj.test_cases));
-                while ~obj.test_cases(obj.curr_case).differences.scale
-                    obj.curr_case = randi(length(obj.test_cases));
-                end
-            end
-
-            fprintf('New case: %i\n', obj.curr_case);
-
-        end % rand_mcc
-%%
-        function all_seqslam(obj)
-        % test all cases using the seqslam method
-
-            for i = 1:length(obj.test_cases)
-
-                obj.curr_case = i;
-
-                obj.process('seqslam','save',true);
-
-            end
-
-        end % end all_seqslam
-%%
-        function rand_seqslam(obj,n)
-        % test n random cases using the seqslam method
-
-            r = randperm(length(obj.test_cases),n);
-
-            for i = 1:n
-
-                obj.curr_case = r(i);
-
-                obj.process('seqslam','save',true);
-
-            end
-
-        end % end rand_seqslam
-%%
-        function rand_surf(obj,n)
-        % test n random cases using the surf method
-
-            r = randperm(length(obj.test_cases),n);
-
-            for i = 1:n
-
-                obj.curr_case = r(i);
-
-                obj.process('surf','save',true);
-
-            end
-
-        end % end rand_surf
-%%
-        function rand_cnn(obj,n)
-        % test n random cases using the cnn method
-
-            r = randperm(length(obj.test_cases),n);
-
-            for i = 1:n
-
-                obj.curr_case = r(i);
-
-                obj.process('cnn','save',true);
-
-            end
-
-        end % end rand_surf
 %%
         function toggle_vis(obj)
         % toggle visuals flag which can be used throughout for
@@ -431,7 +297,7 @@ classdef NASApipeline < handle
 
         end % end toggle_save
         
-        function load_csv_data(obj)
+        function load_csv_data(obj,filenames)
             ftoread = '/home/james/datasets/pixl-watson/pixl.csv';
             fid = fopen(ftoread);
             fgetl(fid);
@@ -441,199 +307,9 @@ classdef NASApipeline < handle
             fid = fopen(ftoread);
             fgetl(fid);
             obj.watson_information = textscan(fid, '%f%s%s%s%f', 'Delimiter',','); % you will need to change the number   of values to match your file %f for numbers and %s for strings.
-            fclose (fid);
-            
-            
-        end
-        
-%         
-        function high_res(obj,n)
-            
-            obj.method = 'high_res';
-            
-            x_images = cell(9,1);
-            y_images = cell(9,1);
-                        
-            for i = 1:length(obj.pixl_information{1})
-                if obj.pixl_information{1}(i) == n
-                    x_ind = obj.pixl_information{3}(i) / 0.5 + 5;
-                    y_ind = obj.pixl_information{4}(i) / 0.5 + 5;
-                    
-                    if x_ind ~= 5
-                        x_images{x_ind,1} = obj.pixl_information{5}(i);
-                        x_images{x_ind,1} = x_images{x_ind,1}{1};
-                    end
-                    if y_ind ~= 5
-                        y_images{y_ind,1} = obj.pixl_information{5}(i);
-                        y_images{y_ind,1} = y_images{y_ind,1}{1};
-                    end
-                    if x_ind == 5 && y_ind == 5
-                        y_images{y_ind,1} = obj.pixl_information{5}(i);
-                        y_images{y_ind,1} = y_images{y_ind,1}{1};
-                        x_images{x_ind,1} = obj.pixl_information{5}(i);
-                        x_images{x_ind,1} = x_images{x_ind,1}{1};
-                    end
-                end
-                
-            end
-            
-            obj.ros_scale = [1 1];
-            x_tforms = zeros(3,3,9);
-            y_tforms = zeros(3,3,9);
-            
-            x_tforms(:,:,5) = eye(3);
-            y_tforms(:,:,5) = eye(3);
-            
-            x_images_sanity = cell(9,1);
-            y_images_sanity = cell(9,1);
-
-            for i = 1:length(obj.test_cases)
-                if obj.test_cases(i).context == n
-                    if obj.test_cases(i).seqslam.match && obj.test_cases(i).Image2.Illumination == 1 && obj.test_cases(i).Image1.mcc && obj.test_cases(i).Image2.mcc && (abs(obj.test_cases(i).Image2.Translation_X - obj.test_cases(i).Image1.Translation_X) == 0.5 || abs(obj.test_cases(i).Image2.Translation_Y - obj.test_cases(i).Image1.Translation_Y) == 0.5)
-                        x_ind = NaN;
-                        y_ind = NaN;
-                        for j=1:9
-                            if ~isempty(strfind(obj.test_cases(i).Image2.Exposure,x_images{j}))
-                                if j > 5
-                                    if ~isempty(strfind(obj.test_cases(i).Image1.Exposure,x_images{j-1}))
-                                        x_ind = j;
-                                        break
-                                    end
-                                elseif j < 5
-                                    if ~isempty(strfind(obj.test_cases(i).Image1.Exposure,x_images{j+1}))
-                                        x_ind = j;
-                                        break
-                                    end
-                                elseif j == 5
-                                    x_ind = j;
-                                    break
-                                end
-                            elseif ~isempty(strfind(obj.test_cases(i).Image2.Exposure,y_images{j}))
-                                if j > 5
-                                    if ~isempty(strfind(obj.test_cases(i).Image1.Exposure,y_images{j-1}))
-                                        y_ind = j;
-                                        break
-                                    end
-                                elseif j < 5
-                                    if ~isempty(strfind(obj.test_cases(i).Image1.Exposure,y_images{j+1}))
-                                        y_ind = j;
-                                        break
-                                    end
-                                elseif j == 5
-                                    y_ind = j;
-                                    break
-                                end
-                            end
-                        end
-                        
-                        if isnan(x_ind) && isnan(y_ind)
-                            continue
-                        end
-                        
-                        
-                        if x_ind ~= 5 && ~isnan(x_ind)
-                            if x_ind > 5 && obj.test_cases(i).Image2.Translation_X > obj.test_cases(i).Image1.Translation_X
-                                x_tforms(:,:,x_ind) = obj.test_cases(i).seqslam.tform.T;
-                            elseif x_ind < 5 && obj.test_cases(i).Image2.Translation_X < obj.test_cases(i).Image1.Translation_X
-                                x_tforms(:,:,x_ind) = obj.test_cases(i).seqslam.tform.T;
-                            end
-                            x_images{x_ind,1} = obj.test_cases(i).Image2.Exposure;
-                            x_images_sanity{x_ind,1} = obj.test_cases(i).Image1.Exposure;
-                        elseif y_ind ~= 5 && ~isnan(y_ind)
-                            if y_ind > 5 && obj.test_cases(i).Image2.Translation_Y > obj.test_cases(i).Image1.Translation_Y
-                                y_tforms(:,:,y_ind) = obj.test_cases(i).seqslam.tform.T;
-                            elseif y_ind < 5 && obj.test_cases(i).Image2.Translation_Y < obj.test_cases(i).Image1.Translation_Y
-                                y_tforms(:,:,y_ind) = obj.test_cases(i).seqslam.tform.T;
-                            end
-                            y_images{y_ind,1} = obj.test_cases(i).Image2.Exposure;
-                            y_images_sanity{y_ind,1} = obj.test_cases(i).Image1.Exposure;
-                        elseif x_ind == 5
-                            x_images{x_ind,1} = obj.test_cases(i).Image2.Exposure;
-                            x_images_sanity{x_ind,1} = obj.test_cases(i).Image1.Exposure;
-                        elseif y_ind == 5
-                            y_images{y_ind,1} = obj.test_cases(i).Image2.Exposure;
-                            y_images_sanity{y_ind,1} = obj.test_cases(i).Image1.Exposure;
-                            
-                        end
-                        
-                    end
-                end                
-            end
-            
-            for i=6:length(x_tforms)
-                x_tforms(:,:,i) = x_tforms(:,:,i-1)*x_tforms(:,:,i);
-            end
-            
-            for i=4:-1:1
-                x_tforms(:,:,i) = x_tforms(:,:,i+1)*x_tforms(:,:,i);
-            end
-            
-            for i=6:length(y_tforms)
-                y_tforms(:,:,i) = y_tforms(:,:,i-1)*y_tforms(:,:,i);
-            end
-            
-            for i=4:-1:1
-                y_tforms(:,:,i) = y_tforms(:,:,i+1)*y_tforms(:,:,i);
-            end
-            
-            obj.patch_norm = 1;
-            registered_images = cell(9,9);
-            obj.watsonImage = imread(x_images{5,:});
-            registered_images{5,5} = obj.watsonImage;
-            x_offset = abs(min(squeeze(x_tforms(3,1,:))));
-            y_offset = abs(min(squeeze(y_tforms(3,2,:))));
-            outimage = zeros(round(size(obj.watsonImage,1)+x_offset+abs(max(squeeze(x_tforms(3,1,:))))),round(size(obj.watsonImage,2)+y_offset+abs(max(squeeze(y_tforms(3,2,:))))),0);
-            outimage(x_offset+1:x_offset+size(obj.watsonImage,1),y_offset+1:y_offset+size(obj.watsonImage,2),end+1) = obj.watsonImage;
-            imagesc(mean(outimage,3))
-            pause
-            for i=1:length(x_tforms)
-                if i == 5
-                    continue
-                end
-                obj.pixlImage = imread(y_images{10-i,:});
-                obj.ros_imload();
-                obj.tform.T = x_tforms(:,:,i);
-                obj.ros_save_im();
-                registered_images{5,i} = obj.im2_registered;
-                round(x_offset+x_tforms(3,1,i)+1)
-                round(x_offset+x_tforms(3,1,i))+size(obj.im2_registered,1)
-                round(y_offset+x_tforms(3,2,i)+1)
-                round(y_offset+x_tforms(3,2,i))+size(obj.im2_registered,2)
-                outimage(round(x_offset+x_tforms(3,1,i)+1):round(x_offset+x_tforms(3,1,i))+size(obj.im2_registered,1),round(y_offset+x_tforms(3,2,i)+1):round(y_offset+x_tforms(3,2,i))+size(obj.im2_registered,2),end+1) = obj.im2_registered;
-                imagesc(mean(outimage,3))
-                pause
-            end
-            for i=1:length(y_tforms)
-                if i == 5
-                    continue
-                end
-                obj.pixlImage = imread(x_images{10-i,:});
-                obj.ros_imload();
-                obj.tform.T = y_tforms(:,:,i);
-                obj.ros_save_im();
-                registered_images{i,5} = obj.im2_registered;
-                outimage(round(x_offset+y_tforms(3,1,i)+1):round(x_offset+y_tforms(3,1,i))+size(obj.im2_registered,1),round(y_offset+y_tforms(3,2,i)+1):round(y_offset+y_tforms(3,2,i))+size(obj.im2_registered,2),end+1) = obj.im2_registered;
-            
-            
-            end
-            
-            size(outimage)
-            counts = sum(outimage ~=0,3);
-            imagesc(sum(outimage,3)./counts)
+            fclose (fid);        
             
         end
-%%
-        function process_high_res(obj,im1,im2)
-        % process the current set case using specified method
-
-            obj.patch_norm = 1;
-
-            obj.ros_imload();
-            obj.seqslam()
-            obj.ros_align_im();
-            obj.ros_save_im();
-
-        end % end process
 %%
         function process(obj,method,varargin)
         % process the current set case using specified method
@@ -799,101 +475,6 @@ classdef NASApipeline < handle
         end
 
 %%
-        function high_res_im(obj)
-        % generate gif using the estimated transform
-
-            im1f = obj.im1_fullres;
-            im2f = obj.im2_fullres;
-
-            % create number of frames, desired dimension
-            nframes = 10;
-            desdim = 800;
-
-            % different methods use different fixed and moving images,
-            % should update this to make consistent
-            [xLimitsOut,yLimitsOut] = outputLimits(obj.tform, [1 size(im1f,2)], [1 size(im1f,1)]);
-
-            % Find the minimum and maximum output limits
-            xMin = min([1; xLimitsOut(:)]);
-            xMax = max([size(im2f,2); xLimitsOut(:)]);
-            yMin = min([1; yLimitsOut(:)]);
-            yMax = max([size(im2f,1); yLimitsOut(:)]);
-
-            % Width, height and limits of outView
-            width  = round(xMax - xMin);
-            height = round(yMax - yMin);
-            xLimits = [xMin xMax];
-            yLimits = [yMin yMax];
-            outView = imref2d([height width], xLimits, yLimits);
-
-            % apply identity transform to im2 to match size
-            obj.im2_registered = imwarp(im2f, affine2d(eye(3)), 'OutputView', outView);
-
-            % apply estimated transform to im1
-            registered = imwarp(im1f, obj.tform, 'OutputView', outView);
-
-            % remove any excess padding from both images
-            mask = obj.im2_registered ==0 & registered == 0;
-            mask = prod(mask,3);
-            mask_test = double(repmat(all(mask'),[size(mask,2),1]))' | double(repmat(all(mask),[size(mask,1),1]));
-            obj.im2_registered = obj.im2_registered(~all(mask_test'),~all(mask_test),:);
-            registered = registered(~all(mask_test'),~all(mask_test),:);
-
-            % resize to max dimension of desdim
-            max_dim = max(size(registered));
-            r_dim = [NaN NaN];
-            r_dim(size(registered) == max_dim) = desdim;
-            obj.im1_registered = imresize(registered,r_dim);
-            obj.im2_registered = imresize(obj.im2_registered,r_dim);
-            
-            imshowpair(obj.im1_registered,obj.im2_registered);
-            pause
-
-%             % Generate gif
-%             outstring = sprintf('%s_%s',obj.method,obj.save_string);
-% 
-%             if ~isdir(obj.ros_gifdir)
-%                 mkdir(obj.ros_gifdir);
-%             end
-% 
-%             framename = sprintf('%s%s.gif',obj.ros_gifdir,outstring);
-% 
-%             start_end_delay = 0.5;
-%             normal_delay = 2.0 / nframes;
-% 
-%             if length(size(obj.im1_orig)) == 2
-%                 third_dim = 1;
-%             else
-%                 third_dim = 3;
-%             end
-% 
-%             for i = 1:nframes
-% 
-%                 if i == 1 || i == (nframes) / 2 + 1
-%                     fdelay = start_end_delay;
-%                 else
-%                     fdelay = normal_delay;
-%                 end
-% 
-%                 im1_fract = abs( (0.5 * nframes - (i - 1)) / (0.5 * nframes - 1));
-% 
-%                 % Directional fade
-%                 if third_dim == 1
-%                     [imind1,cm1] = rgb2ind( repmat(uint8(im1_fract * obj.im2_registered + (1 - im1_fract) * obj.im1_registered), [1 1 3]), 256);
-%                 else
-%                     [imind1,cm1] = rgb2ind( uint8(im1_fract * obj.im2_registered + (1 - im1_fract) * obj.im1_registered), 256);
-%                 end
-% 
-%                 if i == 1
-%                     imwrite(imind1, cm1, framename, 'gif', 'Loopcount', inf, 'DelayTime', fdelay);
-%                 else
-%                     imwrite(imind1, cm1, framename, 'gif', 'WriteMode', 'append', 'DelayTime', fdelay);
-%                 end
-% 
-%             end
-
-        end
-%%
         function save_im(obj)
         % generate gif using the estimated transform
 
@@ -1014,7 +595,8 @@ classdef NASApipeline < handle
             end
 
             % regenerate the results page for this case
-%             obj.generate_html();
+            obj.results_publisher = ResultsPublisher(obj);
+            obj.results_publisher.generate_html();
 
         end
 %%
@@ -1172,119 +754,6 @@ classdef NASApipeline < handle
 
         end % end show_matches
 %%
-        function cases = find_allmatch(obj)
-        % find cases in which all methods were sucessfully aligned
-
-            cases = [];
-
-            for i = 1:length(obj.test_cases)
-
-                if obj.test_cases(i).seqslam.match && ...
-                        obj.test_cases(i).cnn.match && ...
-                        obj.test_cases(i).surf.match
-
-                    if all([obj.test_cases(i).differences.translation ...
-                            ~obj.test_cases(i).differences.lighting ...
-                            obj.test_cases(i).differences.scale ...
-                            obj.test_cases(i).differences.multimodal])
-
-                        cases = [cases i];
-                        fprintf('Case %i, Context %i\n',i, obj.test_cases(i).context);
-
-                    end
-
-                end
-                
-            end
-
-        end % find_allmatch
-%%
-        function generate_fullresultshtml(obj)
-        % generate the results html page showing all cases and results
-            f = fopen(sprintf('%sind_results.html',[obj.save_dir '/web-' obj.method num2str(obj.trajectory_mode)]),'w');
-            fprintf(f,obj.header_html());
-            fprintf(f,'<h2>Individual Results</h2><br />');
-            fprintf(f,'<table><tr><th rowspan="2" width="150">Case</th><th rowspan="2" width="150">Context</th><th colspan="2">Image Types</th><th colspan="4">Differences</th><th colspan="3">Method Results</th><th></th></tr>');
-            fprintf(f,'<tr><th width="150">Image 1</th><th width="150">Image 2</th><th width="150">Translation</th><th width="150">Lighting</th><th width="150">Scale</th><th width="150">Multimodal</th><th width="150">SeqSLAM</th><th width="150">CNN</th><th width="150">SURF</th></tr>');
-            string = '<tr align="center"><td>%i</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>';
-            for i = 1:length(obj.test_cases)
-
-                if any(obj.known_bad_cases == i)
-
-                    fprintf(f,sprintf(string, ...
-                        i, '<font color="red">BAD CASE</font>', ...
-                        '', ...
-                        '', ...
-                        '', ...
-                        '', ...
-                        '', ...
-                        '', ...
-                        '', ...
-                        '', ...
-                        ''));
-
-                else
-
-                    fprintf(f,sprintf(string, ...
-                        i, int2str(obj.test_cases(i).context), ...
-                        bool2mode(obj.test_cases(i).Image1.mcc), ...
-                        bool2mode(obj.test_cases(i).Image2.mcc), ...
-                        bool2str(obj.test_cases(i).differences.translation), ...
-                        bool2str(obj.test_cases(i).differences.lighting), ...
-                        bool2str(obj.test_cases(i).differences.scale), ...
-                        bool2str(obj.test_cases(i).differences.multimodal), ...
-                        bool2mark(obj.test_cases(i).(['seqslam' num2str(obj.trajectory_mode)]).match), ...
-                        bool2mark(obj.test_cases(i).cnn.match), ...
-                        bool2mark(obj.test_cases(i).surf.match)));
-
-                end
-            end
-
-            fprintf(f,'</table>');
-            fprintf(f,'</div></body> </html>');
-            fclose(f);
-
-        end % end generate_fullresultshtml
-%%
-        function summ_alltesting(obj)
-        % generate the category/method results table and generate the
-        % summarised results page
-
-            obj.type_table = unique(combntns([0 1 0 1 0 1 0 1 0 1 0 1],6),'rows');
-
-            obj.summ_testing('cnn');
-            Total = obj.test_totals;
-            ind = Total ~= 0;
-            Total = Total(ind);
-            obj.type_table = obj.type_table(ind,:);
-            CNN = obj.results.([obj.method num2str(obj.trajectory_mode)]);
-            CNN = CNN(ind);
-            obj.results.([obj.method num2str(obj.trajectory_mode)]) = CNN;
-
-            obj.summ_testing('surf');
-            assert(all(Total(:) == obj.test_totals(:)));
-            SURF = obj.results.([obj.method num2str(obj.trajectory_mode)]);
-
-            obj.summ_testing('seqslam');
-            assert(all(Total(:) == obj.test_totals(:)));
-            SeqSLAM = obj.results.([obj.method num2str(obj.trajectory_mode)]);
-
-            Image1 = obj.type_table(:,1);
-            Image2 = obj.type_table(:,2);
-            Translation = obj.type_table(:,3);
-            Lighting = obj.type_table(:,4);
-            Scale = obj.type_table(:,5);
-            Multimodal = obj.type_table(:,6);
-
-            obj.results.table = table(Image1,Image2,Translation,Lighting,Scale,Multimodal,SeqSLAM,CNN,SURF,Total);
-            obj.results.table
-
-            obj.save_prog();
-
-            obj.generate_home();
-
-        end
-%%
         function save_prog(obj)
         % save the object to backup results
 
@@ -1293,43 +762,7 @@ classdef NASApipeline < handle
             save(sprintf('%snasa-%i%02i%02i.mat',obj.save_dir,d(1),d(2),d(3)),'nasa');
 
         end
-%%
-        function find_all_example(obj)
-        % find a random example where all methods were successful
-
-            status = [0 0 0];
-
-            while ~all(status)
-                n = randi(length(obj.test_cases));
-
-                if ~isfield(obj.test_cases(n).cnn,'tform_status') || ...
-                        ~isfield(obj.test_cases(n).surf,'tform_status') || ...
-                        ~isfield(obj.test_cases(n).seqslam,'tform_status')
-                    continue
-                end
-
-                modes = ['cnn    ';'surf   ';'seqslam'];
-
-                for i = 1:3
-                    obj.method = strtrim(modes(i,:));
-                    if obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]).scaleRecovered > 2
-                        continue
-                    elseif obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]).scaleRecovered < 0.5
-                        continue
-                    elseif abs(obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]).thetaRecovered) > 7.5
-                        continue
-                    end
-                end
-
-                status = [obj.test_cases(n).cnn.tform_status == 0 ...
-                    obj.test_cases(n).surf.tform_status == 0 ...
-                    obj.test_cases(n).seqslam.tform_status == 0];
-
-            end
-
-            obj.curr_case = n;
-
-        end % end find_all_example
+        
 %%
         function summ_testing(obj,method)
         % summarise test results for a particular method
@@ -1391,27 +824,23 @@ classdef NASApipeline < handle
 
                 obj.curr_case = i;
 
-%                 obj.patch_norm = 0;
-% 
-%                 obj.im_load();
-%                 
-%                 tic
-%                 obj.method = 'cnn';
-%                 obj.cnn();
-%                 obj.align_im();
-%                 obj.save_im();
-%                 fprintf('CNN Time: %0.4f\n',toc)
-%                 
-%                 tic
-%                 obj.method = 'surf';
-%                 obj.surf();
-%                 obj.align_im();
-%                 obj.save_im();
-%                 fprintf('SURF Time: %0.4f\n',toc)
+                obj.patch_norm = 0;
 
-                if ~(~obj.test_cases(obj.curr_case).Image1.mcc && obj.test_cases(obj.curr_case).Image2.mcc && obj.test_cases(obj.curr_case).differences.multimodal && obj.test_cases(obj.curr_case).differences.scale)
-                    continue
-                end
+                obj.im_load();
+                
+                tic
+                obj.method = 'cnn';
+                obj.cnn();
+                obj.align_im();
+                obj.save_im();
+                fprintf('CNN Time: %0.4f\n',toc)
+                
+                tic
+                obj.method = 'surf';
+                obj.surf();
+                obj.align_im();
+                obj.save_im();
+                fprintf('SURF Time: %0.4f\n',toc)
 
                 obj.patch_norm = 1;
                 obj.im_load();
@@ -1423,7 +852,7 @@ classdef NASApipeline < handle
                 obj.save_im();
                 fprintf('SeqSLAM Time: %0.4f\n',toc)
                 
-%                 obj.save_prog();
+                obj.save_prog();
 
             end
 
@@ -1655,8 +1084,6 @@ classdef NASApipeline < handle
                         continue
                     end
                     
-%                     %tic
-                    
                     if obj.gpu_processing || obj.gpu_devel_mode
                         xchist_gpu(:) = 0;
                         gpu_xchist_cubed(:) = 0;
@@ -1779,10 +1206,6 @@ classdef NASApipeline < handle
                         end
                         
                     end
-                    
-%                     t_xcorr = toc;
-%                     fprintf('Xcorr processing %0.4f\n',t_xcorr)                    
-%                     %tic
 
                     if obj.random_trajectories_experimental
                         ppos = ppos_unscaled;
@@ -1833,9 +1256,6 @@ classdef NASApipeline < handle
                         
                     end
                     
-%                     t_shifting = toc;
-%                     fprintf('Trajectory shifting %0.4f\n',t_shifting)
-                    %tic
                     abs_xcsum = abs(xcsum);
 
                     if obj.visuals
@@ -1859,9 +1279,6 @@ classdef NASApipeline < handle
 
                     fpsz = size(obj.fixedPoints);
                     
-%                     t3 = toc;                    
-%                     fprintf('Matching processing %0.4f\n',t3)
-
                     if obj.visuals
                         
                         % Plot figure
@@ -2415,7 +1832,7 @@ classdef NASApipeline < handle
             close all
             % load images
             obj.curr_case = NaN;
-            obj.im1 = obj.watsonImage;
+            obj.im1 = obj.InitialImage;
             obj.im2 = obj.pixlImage;
 
 %             mx1dim = max(size(obj.im1,2));
@@ -2514,38 +1931,7 @@ classdef NASApipeline < handle
                 obj.im1_fullres_gray = obj.im1_fullres;
             else
                 
-%                 if obj.gpu_processing
-%                     
-%                     %tic
-%                     
-%                     obj.gpu_out1 = zeros(size(obj.im1_fullres),'single','gpuArray');
-%                     gpu_im1 = gpuArray(obj.im1_fullres);
-% 
-%                     width = size(obj.im1_fullres,2);
-%                     height = size(obj.im1_fullres,1);
-% 
-%                     obj.gpu_rgb2gray.GridSize = [ceil(height / obj.block_size1),ceil(width / obj.block_size1)];
-%                     
-%                     colourStep = gpu_im1(1,1,1);
-%                     xAttrib = whos('colourStep');
-%                     colourStep = xAttrib.bytes * width * 3;
-%                     
-%                     grayStep = obj.gpu_out1(1,1,1);
-%                     xAttrib = whos('grayStep');
-%                     grayStep = xAttrib.bytes * width;
-%                     obj.gpu_out1 = feval(obj.gpu_rgb2gray,gpu_im1,obj.gpu_out1,width,height,colourStep,grayStep);  
-% 
-%                     obj.im1_fullres_gray = gather(obj.gpu_out1);
-%                     obj.im1_fullres_gray = double(obj.im1_fullres_gray);
-%                     obj.im1_fullres_gray(isnan(obj.im1_fullres_gray))=0;     
-
-%                     fprintf('GPU: %0.6f\n',toc);             
-%                                         
-%                 else
-%                     %tic
-                    obj.im1_fullres_gray = rgb2gray(obj.im1_fullres);
-%                     fprintf('MATLAB: %0.6f\n',toc);
-%                 end
+            obj.im1_fullres_gray = rgb2gray(obj.im1_fullres);
                 
             end
 
@@ -2553,38 +1939,8 @@ classdef NASApipeline < handle
                 obj.im2_fullres_gray = obj.im2_fullres;
             else
                 
-%                 if obj.gpu_processing
-%                     
-%                     %tic
-%                     obj.gpu_out2 = zeros(size(obj.im2_fullres),'single','gpuArray');
-%                     gpu_im2 = gpuArray(obj.im2_fullres);
-% 
-%                     width = size(obj.im2_fullres,2);
-%                     height = size(obj.im2_fullres,1);
-% 
-%                     obj.gpu_rgb2gray.GridSize = [ceil(height / obj.block_size1),ceil(width / obj.block_size1)];
-%                     
-%                     colourStep = gpu_im2(1,1,1);
-%                     xAttrib = whos('colourStep');
-%                     colourStep = xAttrib.bytes * width * 3;
-%                     
-%                     grayStep = obj.gpu_out2(1,1,1);
-%                     xAttrib = whos('grayStep');
-%                     grayStep = xAttrib.bytes * width;
-%                     
-%                     obj.gpu_out2 = feval(obj.gpu_rgb2gray,gpu_im2,obj.gpu_out2,width,height,colourStep,grayStep);
-% 
-%                     obj.im2_fullres_gray = gather(obj.gpu_out2);
-%                     obj.im2_fullres_gray = double(obj.im2_fullres_gray);
-%                     obj.im2_fullres_gray(isnan(obj.im2_fullres_gray))=0;
-%                     
-%                     fprintf('GPU: %0.6f\n',toc);                    
-%                 else
-%                     %tic
-                    obj.im2_fullres_gray = rgb2gray(obj.im2_fullres);
-%                     fprintf('MATLAB: %0.6f\n',toc);
-%                 end
-                
+            obj.im2_fullres_gray = rgb2gray(obj.im2_fullres);
+              
             end
 
             % resize images to maxdim 400 (one axis only)
@@ -2973,45 +2329,6 @@ classdef NASApipeline < handle
 
         end % end set_network
 %%
-        function reprocess_im(obj,varargin)
-            if nargin > 1
-                a = varargin{1};
-                b = varargin{2};
-            else
-                a = 1;
-                b = length(obj.test_cases);
-            end
-
-            if b < a
-                c = -1;
-            else
-                c = 1;
-            end
-
-            modes = ['seqslam';'surf   ','cnn    '];
-            obj.patch_norm = 0;
-
-            for i = a:c:b
-
-                obj.curr_case = i;
-
-                obj.im_load();
-
-                for j = 1:size(modes,1)
-
-                    if exist(sprintf('%s%s_%i.gif',[obj.gifdir obj.method num2str(obj.trajectory_mode) '/'],obj.method,obj.curr_case),'file') == 2
-                        break
-                    end
-
-                    obj.method = strtrim(modes(j,:));
-                    obj.save_im();
-
-                end
-
-            end
-
-        end
-%%
         % set the path to the network definition file
         function set_network_col(obj,network)
 
@@ -3058,224 +2375,6 @@ classdef NASApipeline < handle
 
         end % end set_model
 %%
-        function string = header_html(obj)
-
-            script = sprintf('<script> function process() { var url="file://%s/pages/" + document.getElementById("url").value + ".html"; location.href=url; return false; } </script>',[obj.save_dir '/web-' obj.method num2str(obj.trajectory_mode)]);
-            string = sprintf('<!DOCTYPE html> <html lang="en"> <head> <meta charset="utf-8"> <title>QUT / NASA Image Registration</title> <link rel="stylesheet" href="%s/css/style.css"> <script src="script.js"></script> %s</head> <body><div align="center"><br /><table><tr align="center"><td width="200"><img src="/home/james/Dropbox/NASA/SeqSLAM/acrv.jpg" height="50" /></td><td width="200"><img src="/home/james/Dropbox/NASA/SeqSLAM/qut.png" height="50" /></td><td width="200"><img src="/home/james/Dropbox/NASA/SeqSLAM/nasa-jpl.gif" height="50" /></td></tr></table><br /><h1><a href="%s/index.html">QUT / NASA Image Registration</a><br /></h1><form onSubmit="return process();">Go to test case: <input  type="text" name="url" id="url"><input type="submit" value="Go"></form><br />',[obj.save_dir '/web-' obj.method num2str(obj.trajectory_mode)],script,[obj.save_dir '/web-' obj.method num2str(obj.trajectory_mode)]);
-
-        end
-%%
-        function mutual_information(obj)
-
-            desdim = 800;
-            nframes = 10;
-
-            metric    = registration.metric.MattesMutualInformation;
-            optimizer = registration.optimizer.RegularStepGradientDescent;
-            optimizer.MaximumStepLength = 0.01;
-
-            im_1 = rgb2gray(obj.im1_fullres_unpad);
-            im_2 = rgb2gray(obj.im2_fullres_unpad);
-
-            if max([size(im_1) size(im_2)]) > 800
-
-                im_1 = imresize(im_1,0.5);
-                im_2 = imresize(im_2,0.5);
-            end
-
-            T = eye(3);
-            T(1,3) = 0.5*size(im_1,2) - 0.5*size(im_2,2);
-            T(2,3) = 0.5*size(im_1,1) - 0.5*size(im_2,1);
-
-            T = affine2d(T');
-
-            [im2_registered, R_reg] = imregister(im_2, im_1, 'similarity', optimizer, metric,'InitialTransformation',T);
-
-            max_dim = max(size(im2_registered));
-
-            r_dim = [NaN NaN];
-
-            r_dim(size(im2_registered) == max_dim) = desdim;
-
-            registered_crop = imresize(im2_registered,r_dim);
-            im2_registered = imresize(im_1,r_dim);
-
-            % Generate gif
-
-            outstring = sprintf('%s_%i',obj.method,obj.curr_case);
-
-            if ~isdir([obj.gifdir obj.method num2str(obj.trajectory_mode) '/'])
-                mkdir([obj.gifdir obj.method num2str(obj.trajectory_mode) '/']);
-            end
-
-            framename = sprintf('%s%s.gif',[obj.gifdir obj.method num2str(obj.trajectory_mode) '/'],outstring);
-
-            start_end_delay = 0.5;
-            normal_delay = 2.0 / nframes;
-
-            if length(size(im2_registered)) == 2
-                third_dim = 1;
-            else
-                third_dim = 3;
-            end
-
-            for i = 1:nframes
-
-                if i == 1 || i == (nframes) / 2 + 1
-                    fdelay = start_end_delay;
-                else
-                    fdelay = normal_delay;
-                end
-
-                im1_fract = abs( (0.5 * nframes - (i - 1)) / (0.5 * nframes - 1));
-
-                % Directional fade
-                if third_dim == 1
-                    [imind1,cm1] = rgb2ind( repmat(uint8(im1_fract * im2_registered + (1 - im1_fract) * registered_crop), [1 1 3]), 256);
-                else
-                    [imind1,cm1] = rgb2ind( uint8(im1_fract * im2_registered + (1 - im1_fract) * registered_crop), 256);
-                end
-
-                if i == 1
-                    imwrite(imind1, cm1, framename, 'gif', 'Loopcount', inf, 'DelayTime', fdelay);
-                else
-                    imwrite(imind1, cm1, framename, 'gif', 'WriteMode', 'append', 'DelayTime', fdelay);
-                end
-
-            end
-
-            if obj.visuals
-                unix(['gnome-open ' framename]);
-                pause
-            end
-        end
-%%
-        function generate_home(obj)
-
-            f = fopen(sprintf('%s/index.html',[obj.save_dir '/web-' obj.method num2str(obj.trajectory_mode)]),'w');
-            fprintf(f,obj.header_html());
-            fprintf(f,'<h2>Current Results</h2><br />');
-            fprintf(f,'<table><tr><th colspan="2">Image Types</th><th colspan="4">Differences</th><th colspan="3">Method Results</th><th></th></tr>');
-            fprintf(f,'<tr><th width="150">Image 1</th><th width="150">Image 2</th><th width="150">Translation</th><th width="150">Lighting</th><th width="150">Scale</th><th width="150">Multimodal</th><th width="150">SeqSLAM</th><th width="150">CNN</th><th width="150">SURF</th><th width="150">Total</th></tr>');
-            string = '<tr align="center"><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%i (%0.1f%s)</td><td>%i (%0.1f%s)</td><td>%i (%0.1f%s)</td><td>%i</td></tr>';
-            for i = 1:size(obj.results.table,1)
-
-                fprintf(f,sprintf(string, ...
-                    bool2mode(obj.results.table.Image1(i)), ...
-                    bool2mode(obj.results.table.Image2(i)), ...
-                    bool2str(obj.results.table.Translation(i)), ...
-                    bool2str(obj.results.table.Lighting(i)), ...
-                    bool2str(obj.results.table.Scale(i)), ...
-                    bool2str(obj.results.table.Multimodal(i)), ...
-                    obj.results.table.SeqSLAM(i), ...
-                    obj.results.table.SeqSLAM(i) * 100 / obj.results.table.Total(i), '%%',...
-                    obj.results.table.CNN(i), ...
-                    obj.results.table.CNN(i) * 100 / obj.results.table.Total(i), '%%', ...
-                    obj.results.table.SURF(i), ...
-                    obj.results.table.SURF(i) * 100 / obj.results.table.Total(i), '%%', ...
-                    obj.results.table.Total(i)));
-            end
-
-            string = '<tr align="center"><th></th><th></th><th></th><th></th><td></th><th></th><th>%i (%0.1f%s)</th><th>%i (%0.1f%s)</th><th>%i (%0.1f%s)</th><th>%i</th></tr>';
-
-            fprintf(f,sprintf('<br />%s',sprintf(string, ...
-                sum(obj.results.table.SeqSLAM), ...
-                sum(obj.results.table.SeqSLAM) * 100 / sum(obj.results.table.Total), '%%', ...
-                sum(obj.results.table.CNN), ...
-                sum(obj.results.table.CNN) * 100 / sum(obj.results.table.Total), '%%', ...
-                sum(obj.results.table.SURF), ...
-                sum(obj.results.table.SURF) * 100 / sum(obj.results.table.Total), '%%', ...
-                sum(obj.results.table.Total))));
-            fprintf(f,'</table>');
-            fprintf(f,'</div></body> </html>');
-            fclose(f);
-
-        end
-%%
-        function generate_html(obj)
-
-            root = [obj.save_dir '/web-' obj.method num2str(obj.trajectory_mode)];
-
-            tc = obj.test_cases(obj.curr_case);
-            
-            f = fopen(sprintf('%s/pages/%i.html',root,obj.curr_case),'w');
-            fprintf(f,obj.header_html());
-            fprintf(f,sprintf('<h2>Context %i - Test Case %i</h2><br />', tc.context, obj.curr_case));
-            if any(obj.known_bad_cases == obj.curr_case)
-                fprintf(f,'<h2><font color="red">BAD CASE</font></h2><br />');
-            end
-            fprintf(f,sprintf('<h4><a href="%i.html">Previous</a>&nbsp;&nbsp;&nbsp;&nbsp;<a href="%i.html">Next</a></h4><br />',max(obj.curr_case-1,1),min(obj.curr_case+1,length(obj.test_cases))));
-            fprintf(f,'<table><tr><th></th><th width="150">Image 1</th><th width="150">Image 2</th><th width="150">Differences</th></tr>');
-            tx1 = tc.Image1.Translation_X;
-            tx2 = tc.Image2.Translation_X;
-            ty1 = tc.Image1.Translation_Y;
-            ty2 = tc.Image2.Translation_Y;
-            fprintf(f,sprintf('<tr><th>Translation X</th><td align="center">%0.1f</td><td align="center">%0.1f</td><td rowspan="2" align="center">%s</td></tr>', tx1, tx2, bool2str(tc.differences.translation)));
-            fprintf(f,sprintf('<tr><th>Translation Y</th><td align="center">%0.1f</td><td align="center">%0.1f</td></tr>', ty1, ty2));
-            lighting = ['Top  ';'Right';'Left '];
-            fprintf(f,sprintf('<tr><th>Illumination</th><td align="center">%s</td><td align="center">%s</td><td align="center">%s</td></tr>', strtrim(lighting(tc.Image1.Illumination,:)), strtrim(lighting(tc.Image2.Illumination,:)), bool2str(tc.differences.lighting)));
-            fprintf(f,sprintf('<tr><th>Focal Extension (Scale)</th><td align="center">%0.1fmm</td><td align="center">%0.1fmm</td><td align="center">%s</td></tr>', tc.Image1.Extension, tc.Image2.Extension, bool2str(tc.differences.scale)));
-            image_modes = ['Watson';'PIXL  '];
-            fprintf(f,sprintf('<tr><th>Mode</th><td align="center">%s</td><td align="center">%s</td><td align="center">%s</td></tr>', strtrim(image_modes(tc.Image1.mcc+1,:)), strtrim(image_modes(tc.Image2.mcc+1,:)), bool2str(tc.differences.multimodal)));
-            fprintf(f,'</table><br /><br /><br />');
-
-
-            fprintf(f,'<table><tr><th width="400">SeqSLAM</th><th width="400">CNN</th><th width="500">SURF</th></tr><tr>');
-            modes = ['seqslam';'cnn    ';'surf   '];
-            for i = 1:3
-                image = sprintf('%s%s_%i.gif',[obj.gifdir obj.method num2str(obj.trajectory_mode) '/'],strtrim(modes(i,:)),obj.curr_case);
-                if exist(image, 'file') == 2
-                    obj.test_cases(obj.curr_case).([strtrim(modes(i,:)) num2str(obj.trajectory_mode)]).match
-                    fprintf(f,sprintf('<td align="center"><a href="%s"><img src="%s" width="500" border="5" style="border-color: %s"/></a></td>',image,image,match2colour(obj.test_cases(obj.curr_case).([strtrim(modes(i,:)) num2str(obj.trajectory_mode)]).match)));
-                else
-                    fprintf(f,'<td align="center">No GIF</td>');
-                end
-
-            end
-            fprintf(f,'</tr><tr>');
-            for i = 1:3
-                if isfield(tc.([strtrim(modes(i,:)) num2str(obj.trajectory_mode)]),'tform_status') & tc.([strtrim(modes(i,:)) num2str(obj.trajectory_mode)]).tform_status == 0
-
-                    fprintf(f,sprintf('<td align="center"><ul><li>Scale: %0.3f</li><li>Rotation: %0.3f</li></td>',tc.([strtrim(modes(i,:)) num2str(obj.trajectory_mode)]).scaleRecovered,tc.([strtrim(modes(i,:)) num2str(obj.trajectory_mode)]).thetaRecovered));
-                else
-                    fprintf(f,'<td align="center">No scale or rotation</td>');
-                end
-
-            end
-            fprintf(f,'</tr></table>');
-            fprintf(f,'</div></body> </html>');
-            fclose(f);
-        end
-%%
-        function generate_allhtml(obj,varargin)
-            if nargin > 1
-                if ~isscalar(varargin{1})
-                    items = varargin{1};
-                else
-                    if varargin{1} < varargin{2}
-                        items = varargin{1}:varargin{2};
-                    else
-                        items = varargin{2}:-1:varargin{2};
-                    end
-                end
-            else
-                items = 1:length(obj.test_cases);
-            end
-
-            for i=items
-
-                obj.curr_case = i;
-                obj.generate_html();
-
-            end
-        end
-%%
-        function update_home(obj)
-
-            obj.summ_alltesting();
-            obj.generate_home();
-
-        end
 %%
         function load_model(obj)
 
@@ -3305,51 +2404,15 @@ classdef NASApipeline < handle
 
         end % end load_model
 %%
-        function find_examples(obj)
-
-            for i = 1:length(obj.test_cases)
-
-                if exist(sprintf('%scnn_%i.gif',obj.gifdir,i),'file') && ...
-                        exist(sprintf('%ssurf_%i.gif',obj.gifdir,i),'file') && ...
-                        exist(sprintf('%seqslam_%i.gif',[obj.gifdir obj.method num2str(obj.trajectory_mode) '/'],i),'file')
-
-                    fprintf('Case %i\n',i)
-
-                end
-            end
-
-        end
-%%
-        function retest_match(obj)
-
-            obj.patch_norm = 0;
-
-            for i = 1:length(obj.test_cases)
-
-                obj.curr_case = i;
-
-                obj.im_load();
-
-                methods = ['seqslam';'cnn    ';'surf   '];
-
-                for j = 1:size(methods,1)
-                    obj.method = strtrim(methods(j,:));
-                    obj.test_match();
-                end
-
-            end
-
-        end
-%%
         function bad_matches(obj)
 
             for i = 1:length(obj.known_bad_cases)
 
-                methods = ['seqslam';'cnn    ';'surf   '];
+                methods = {'seqslam','cnn','surf'};
 
                 for j = 1:size(methods,1)
-                    obj.known_bad_cases(i), strtrim(methods(j,:))
-                    obj.test_cases(obj.known_bad_cases(i)).(strtrim(methods(j,:))).match = 0;
+                    obj.known_bad_cases(i), methods(j)
+                    obj.test_cases(obj.known_bad_cases(i)).(methods(j)).match = 0;
 
                 end
 
@@ -3475,29 +2538,5 @@ end
 function string = bool2str(b)
 
 string = regexprep(sprintf('%i',boolean(b)),{'1','0'},{'True','False'});
-
-end
-
-function string = bool2mode(b)
-
-string = regexprep(sprintf('%i',boolean(b)),{'1','0'},{'PIXL','Watson'});
-
-end
-
-
-function string = match2colour(b)
-
-string = regexprep(sprintf('%i',boolean(b)),{'1','0'},{'green','red'});
-
-end
-
-% convert boolean to green tick or red cross
-function string = bool2mark(b)
-
-if boolean(b)
-    string = '<font color="green">&#10004;</font>';
-else
-    string = '<font color="red">&#10008;</font>';
-end
 
 end
