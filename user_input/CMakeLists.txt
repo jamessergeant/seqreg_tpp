@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(seqslam_tpp)
+project(user_input)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -DBT_USE_DOUBLE_PRECISION -Wall")
 
@@ -78,7 +78,7 @@ generate_messages(
 catkin_package(
   CATKIN_DEPENDS baxter_core_msgs cv_bridge roscpp image_transport message_filters moveit_core moveit_ros_planning moveit_ros_planning_interface message_generation message_runtime sensor_msgs std_msgs
   # INCLUDE_DIRS include
-  #  LIBRARIES seqslam_tpp_test
+  #  LIBRARIES user_input_test
   # DEPENDS system_lib
 )
 
@@ -103,11 +103,11 @@ include_directories(include
 )
 
 ## Declare a cpp executable
- add_executable(seqslam_tpp src/seqslam_tpp.cpp)
- add_dependencies(seqslam_tpp seqslam_tpp_generate_messages_cpp)
+ add_executable(user_input src/user_input.cpp)
+ add_dependencies(user_input user_input_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(seqslam_tpp
+ target_link_libraries(user_input
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
    ${PCL_LIBRARIES}
@@ -124,7 +124,7 @@ include_directories(include
  )
 
 # Mark executables and/or libraries for installation
- install(TARGETS seqslam_tpp
+ install(TARGETS user_input
    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

@@ -1,0 +1,9 @@
+<launch>
+
+    <rosparam command="load" file="$(find user_input)/parameters/global.yaml"/>
+
+    <node name="UserInput" pkg="user_input" type="user_input" output="screen">
+    </node>
+
+
+</launch>

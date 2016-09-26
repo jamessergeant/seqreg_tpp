@@ -94,7 +94,7 @@ if __name__ == '__main__':
                    transitions={'succeeded':'generate_initial',
                     'failed': 'repeat'})
 
-        sm_init.add('generate_initial',GeneratePose(pose=initial_pose,noise=initial_noise,frame_id=frame_id,tag='initial_pose'),
+        sm_init.add('generate_initial',GeneratePose(action='load_existing',path='/home/james/Dropbox/NASA/baxter_experiments/userdata/1473319305379.pkl',pose=initial_pose,noise=initial_noise,frame_id=frame_id,tag='initial_pose'),
                 transitions={'succeeded': 'move_to_initial',
                             'failed':'generate_initial'})
 
@@ -102,55 +102,97 @@ if __name__ == '__main__':
                transitions={'succeeded':'user_input',
                             'failed': 'repeat','aborted':'repeat'})
 
-    sm_userinput = smach.StateMachine(outcomes=['repeat','positioning','abort_next_trial'],input_keys=['data'],
+    sm_newref = smach.StateMachine(outcomes=['repeat','secondary','abort_next_trial'],input_keys=['data'],
         output_keys=['data'])
 
-    with sm_userinput:
+    with sm_newref:
 
-        sm_userinput.add('user_input_request', UserInputRequest(action='user_request_initial'), transitions={'succeeded':'get_robot_pose','failed':'repeat','abort':'repeat'})
+        sm_newref.add('user_input_request', UserInputRequest(action='user_request_initial'), transitions={'succeeded':'get_robot_pose','failed':'repeat','abort':'repeat','same_reference_image':'repeat'})
+        # sm_newref.add('user_input_request', UserInputRequest(action='load_existing',path='/home/james/Dropbox/NASA/baxter_experiments/userdata/1473319305379.pkl'), transitions={'succeeded':'secondary','failed':'repeat','abort':'repeat','same_reference_image':'repeat'})
 
-        sm_userinput.add('get_robot_pose',
+        sm_newref.add('get_robot_pose',
             GetRobotPose(movegroup=movegroup,frame_id=frame_id),
-            transitions={'succeeded':'generate_secondary','failed':'repeat','aborted':'abort_next_trial'})
+            transitions={'succeeded':'secondary','failed':'repeat','aborted':'abort_next_trial'})
 
-        sm_userinput.add('generate_secondary',GeneratePose(pose=secondary_pose,noise=secondary_noise,frame_id=frame_id,tag='secondary_pose'),transitions={'succeeded':'move_to_secondary','failed':'generate_secondary'})
+    sm_sameref = smach.StateMachine(outcomes=['repeat','secondary','abort_next_trial'],input_keys=['data'],
+        output_keys=['data'])
 
-        sm_userinput.add('move_to_secondary', MoveRobotState(movegroup=movegroup + '_cartesian'),
-            transitions={'succeeded':'wait_1',
+    with sm_sameref:
+
+        sm_sameref.add('save_data', AbortState(),
+              transitions={'succeeded':'reinit_data'})
+
+        sm_init.add('reinit_data', InitData(action='reinit_data', sample_distance=sample_distance, sample_direction=sample_direction, sample_noise=sample_noise, limits=limits, camera_information=camera_information),transitions={'succeeded':'user_input_request','failed':'repeat'})
+
+        sm_sameref.add('user_input_request', UserInputRequest(action='user_reuse_initial'), transitions={'succeeded':'secondary','failed':'repeat','abort':'repeat','same_reference_image':'repeat'})
+
+    sm_secondary = smach.StateMachine(outcomes=['repeat','positioning','abort_next_trial'],input_keys=['data'],
+        output_keys=['data'])
+
+    with sm_secondary:
+
+        sm_secondary.add('generate_secondary',GeneratePose(pose=secondary_pose,noise=secondary_noise,frame_id=frame_id,tag='secondary_pose'),transitions={'succeeded':'move_to_secondary','failed':'generate_secondary'})
+
+        sm_secondary.add('move_to_secondary', MoveRobotState(movegroup=movegroup + '_cartesian'),
+            transitions={'succeeded':'wait_for_key_press',
                     'failed': 'repeat','aborted':'repeat'})
 
-        sm_userinput.add('wait_1',WaitState(2.0),transitions={'succeeded':'positioning','preempted':'positioning'})
+        sm_secondary.add('wait_for_key_press', UserInputRequest(action='wait_for_key_press'), transitions={'succeeded':'wait_1','failed':'repeat','abort':'abort_next_trial','same_reference_image':'wait_1'})
+
+        sm_secondary.add('wait_1',WaitState(2.0),transitions={'succeeded':'positioning','preempted':'positioning'})
 
 
     sm_positioning = smach.StateMachine(outcomes=['repeat','servoing',
-        'abort_next_trial'],input_keys=['data'],
+        'abort_next_trial','same_reference_image'],input_keys=['data'],
         output_keys=['data'])
 
     with sm_positioning:
 
         sm_positioning.add('get_image', GetImage(tag='secondary_image'),
-            transitions={'succeeded':'get_robot_pose','failed':'repeat','aborted':'abort_next_trial'})
+            transitions={'succeeded':'get_robot_pose',
+                            'failed':'repeat',
+                            'aborted':'abort_next_trial'})
 
         sm_positioning.add('get_robot_pose',
                 GetRobotPose(movegroup=movegroup,frame_id=frame_id,calculate_scales=True),
-                transitions={'succeeded':'calc_scales','failed':'repeat','aborted':'abort_next_trial'})
+                transitions={'succeeded':'calc_scales',
+                            'failed':'repeat',
+                            'aborted':'abort_next_trial'})
 
         sm_positioning.add('calc_scales',
-                CalcScales(), transitions={'succeeded':'seqslam','failed':'repeat','aborted':'abort_next_trial'})
+                CalcScales(), transitions={'succeeded':'seqslam','failed':'repeat',
+                                'aborted':'abort_next_trial'})
 
-        sm_positioning.add('seqslam', SeqSLAMState(method=method), transitions={'succeeded': 'check_limits', 'failed':'seqslam', 'aborted':'abort_next_trial'})
+        sm_positioning.add('seqslam', SeqSLAMState(method=method),
+                transitions={'succeeded': 'check_limits',
+                            'failed':'seqslam',
+                            'aborted':'abort_next_trial'})
 
-        sm_positioning.add('check_limits', CheckLimits(), transitions={'incomplete': 'calculate_move', 'complete': 'calculate_move_complete', 'aborted':'abort_next_trial'})
+        sm_positioning.add('check_limits', CheckLimits(),
+                transitions={'incomplete': 'wait_for_key_press',
+                            'complete': 'calculate_move_complete',
+                            'aborted':'wait_for_key_press'})
 
+        sm_positioning.add('wait_for_key_press', UserInputRequest(
+                action='wait_for_key_press'),
+                transitions={'succeeded':'calculate_move',
+                            'failed':'repeat',
+                            'abort':'abort_next_trial',
+                            'same_reference_image':'calculate_move_complete'})
 
         ## LIMITS NOT MET
-        sm_positioning.add('calculate_move', CalcMovement(), transitions={'succeeded': 'move', 'failed':'calculate_move','aborted':'abort_next_trial'})
+        sm_positioning.add('calculate_move', CalcMovement(),
+                transitions={'succeeded': 'move',
+                            'failed':'calculate_move',
+                            'aborted':'abort_next_trial'})
 
         sm_positioning.add('move', MoveRobotState(movegroup=movegroup),
-            transitions={'succeeded':'toggle_servoing_flag',
-                    'failed': 'abort_next_trial','aborted':'abort_next_trial'})
+                transitions={'succeeded':'toggle_servoing_flag',
+                        'failed': 'abort_next_trial',
+                        'aborted':'abort_next_trial'})
 
-        sm_positioning.add('toggle_servoing_flag', ToggleData(key='servoing',value=True),transitions={'succeeded': 'wait_1'})
+        sm_positioning.add('toggle_servoing_flag', ToggleData(key='servoing',value=True),
+                transitions={'succeeded': 'wait_1'})
 
         sm_positioning.add('wait_1',WaitState(5.0),transitions={'succeeded':'repeat','preempted':'repeat'})
 
@@ -168,7 +210,16 @@ if __name__ == '__main__':
 
         sm_positioning.add('get_robot_pose_complete',
                 GetRobotPose(movegroup=movegroup,frame_id=frame_id,calculate_scales=True),
-                transitions={'succeeded':'abort_next_trial','failed':'abort_next_trial','aborted':'abort_next_trial'})
+                transitions={'succeeded':'wait_for_key_press_complete','failed':'abort_next_trial','aborted':'abort_next_trial'})
+
+        sm_positioning.add('wait_for_key_press_complete', UserInputRequest(
+            action='wait_for_key_press'),
+            transitions={'succeeded':'same_reference_image',
+                        'failed':'repeat',
+                        'abort':'abort_next_trial',
+                        'same_reference_image':'same_reference_image'})
+
+
 
     sm_servoing = smach.StateMachine(outcomes=['repeat','servoing',
             'abort_next_trial'],input_keys=['next_item_to_pick'],
@@ -183,9 +234,11 @@ if __name__ == '__main__':
     sm = smach.StateMachine(outcomes=['succeeded', 'aborted'])
 
     with sm:
-        sm.add('INITIAL', sm_init,  transitions={'repeat':'INITIAL','user_input':'USERINPUT','abort_next_trial':'ABORT'},remapping={'data':'data'})
-        sm.add('USERINPUT', sm_userinput, transitions={'repeat':'USERINPUT','positioning':'POSITIONING','abort_next_trial':'ABORT'},remapping={'data':'data'})
-        sm.add('POSITIONING', sm_positioning, transitions={'repeat':'POSITIONING','servoing':'SERVOING','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('INITIAL', sm_init,  transitions={'repeat':'INITIAL','user_input':'NEWREF','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('NEWREF', sm_newref, transitions={'repeat':'NEWREF','secondary':'SECONDARY','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('SAMEREF', sm_sameref, transitions={'repeat':'SAMEREF','secondary':'SECONDARY','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('SECONDARY', sm_secondary, transitions={'repeat':'SECONDARY','positioning':'POSITIONING','abort_next_trial':'ABORT'},remapping={'data':'data'})
+        sm.add('POSITIONING', sm_positioning, transitions={'repeat':'POSITIONING','servoing':'SERVOING','abort_next_trial':'ABORT','same_reference_image':'SAMEREF'},remapping={'data':'data'})
         sm.add('SERVOING', sm_servoing, transitions={'repeat':'SERVOING','servoing':'SERVOING',
                 'abort_next_trial':'ABORT'},remapping={'data':'data'})
         # sm.add('SAVEDATA',sm_savedata,transitions={'repeat':'SAVEDATA','initial':'INITIAL','abort_next_trial':'ABORT'})
