@@ -118,6 +118,8 @@ class SeqSLAM_TPP {
     bool initialise;
     bool regionSelected= false;
 
+    bool live_image = true;
+
     std::vector<moveit_msgs::CollisionObject> collision_objects;
     std::vector<geometry_msgs::Pose> waypoints;
     std::vector<float> servo_data;
@@ -138,6 +140,7 @@ class SeqSLAM_TPP {
     float servo_y;
 
     cv::Mat color;
+    cv::Mat static_image;
     cv::Mat grey;
     cv::Mat watson_initial_image;
     cv::Mat pixl_initial_image;
@@ -254,6 +257,17 @@ class SeqSLAM_TPP {
     bool userInputRequestCallback(seqslam_tpp::UserSelection::Request &req,
                             seqslam_tpp::UserSelection::Response &res) {
 
+        if (!req.image.data.empty()) {
+          cv_bridge::CvImageConstPtr pCvImage;
+          pCvImage = cv_bridge::toCvCopy(req.image,"bgr8");
+          pCvImage->image.copyTo(static_image);
+          imgMsg = req.image;
+          live_image = false;
+
+        } else {
+          live_image = true;
+        }
+
         cv::setMouseCallback(HI_RES_WINDOW, mouse_click, this);
         cv::setMouseCallback(LO_RES_WINDOW, pixl_click, this);
 
@@ -268,10 +282,10 @@ class SeqSLAM_TPP {
 
             res.roi_scale.data = Froi;
 
-            res.bounding_box.top_left.x = pointA.x;
-            res.bounding_box.top_left.y = pointA.y;
-            res.bounding_box.bottom_right.x = pointB.x;
-            res.bounding_box.bottom_right.y = pointB.y;
+            // res.bounding_box.top_left.x = pointA.x;
+            // res.bounding_box.top_left.y = pointA.y;
+            // res.bounding_box.bottom_right.x = pointB.x;
+            // res.bounding_box.bottom_right.y = pointB.y;
 
             res.message.data = "User selection returned";
             res.success.data = true;
@@ -287,6 +301,7 @@ class SeqSLAM_TPP {
         cv::setMouseCallback(HI_RES_WINDOW, no_click, this);
         cv::setMouseCallback(LO_RES_WINDOW, no_click, this);
 
+          live_image = true;
         return true;
     }
 
@@ -307,10 +322,16 @@ class SeqSLAM_TPP {
     }
 
     void imageCallback(const sensor_msgs::Image::ConstPtr imageColor) {
+      if (live_image) {
         imgMsg = *imageColor;
         imageMsgToMat(imageColor, color);
-        cv::imshow(HI_RES_WINDOW, color);
-        cv::waitKey(3);
+      } else {
+            color = static_image;
+      }
+      cv::imshow(HI_RES_WINDOW, color);
+
+      cv::waitKey(3);
+
     }
 
     // void matlabResponse(std_msgs::Float32MultiArray msg) {
@@ -607,6 +628,7 @@ class SeqSLAM_TPP {
         pCvImage = cv_bridge::toCvShare(msgImage, "bgr8");
         pCvImage->image.copyTo(image);
     }
+
 
     static void no_click(int event, int x, int y, int, void* this_) {
         static_cast<SeqSLAM_TPP*>(this_)->no_click(event, x, y);
