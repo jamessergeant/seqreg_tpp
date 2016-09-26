@@ -31,6 +31,7 @@ class CalcScales(smach.State):
                                 'z':userdata['data']['poses'][1].position.z,
             }
 
+            rospy.logwarn(userdata['data'].keys())
             rospy.logwarn(userdata['data']['distance_estimate'])
 
             scales = np.asarray([abs((position_initial[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])/userdata['data']['roi_scale']), abs(position_secondary[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])])

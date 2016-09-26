@@ -15,7 +15,7 @@ class SeqSLAMState(smach.State):
 
     count = 0
 
-    def __init__(self, action='initial_position',method='ros_seqslam',save_msg=False):
+    def __init__(self, action='initial_position',method='ros_seqslam',save_msg=True):
         smach.State.__init__(self, input_keys=['data'], output_keys=['data'],
                              outcomes=['succeeded','failed','aborted'])
 
@@ -50,7 +50,7 @@ class SeqSLAMState(smach.State):
             request.method.data = self.method
 
             if self.save_msg:
-                P.dump(request,open('/home/james/Dropbox/NASA/test_msgs/%i.pkl' % current_milli_time(),'wb'))
+                P.dump(request,open('/home/james/Dropbox/NASA/baxter_experiments/msgs/%i.pkl' % current_milli_time(),'wb'))
 
             response = self.service.call(request)
 

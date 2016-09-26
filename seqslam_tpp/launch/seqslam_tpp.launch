@@ -2,7 +2,7 @@
 
     <rosparam command="load" file="$(find seqslam_tpp)/parameters/global.yaml"/>
 
-    <node name="SeqSLAM_TPP" pkg="seqslam_tpp" type="seqslam_tpp" >
+    <node name="SeqSLAM_TPP" pkg="seqslam_tpp" type="seqslam_tpp" output="screen">
     </node>
 
 

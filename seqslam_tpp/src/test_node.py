@@ -11,7 +11,9 @@ class test_node:
 
         self.service = rospy.ServiceProxy('/seqslam_tpp/seqslam', MATLABSrv)
 
-        request = pickle.load(open('/home/james/Dropbox/NASA/test_msgs/1471565941813.pkl','rb'))
+        # request = pickle.load(open('/home/james/Dropbox/NASA/test_msgs/1473211892068.pkl','rb'))
+        # request = pickle.load(open('/home/james/Dropbox/NASA/test_msgs/1471565941813.pkl','rb'))
+        request = pickle.load(open('/home/james/Dropbox/NASA/test_msgs/1473211993758.pkl','rb'))
 
         time.sleep(2)
 
