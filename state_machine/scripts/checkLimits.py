@@ -29,7 +29,12 @@ class CheckLimits(smach.State):
 
             print results
             print (np.asarray(results) > np.asarray(userdata['data']['limits']))
-            if (np.asarray(results) > np.asarray(userdata['data']['limits'])).any():
+
+            # test if bad registration (i.e. returns all 0s)
+            if (np.asarray(results) == 0.0).all():
+                return 'aborted'
+            # test if any results exceed completion thresholds
+            if (np.asarray(results) > np.asarray(userdata['data']['limits'])).any() or not userdata['data']['servoing']:
                 return 'incomplete'
 
             return 'complete'
