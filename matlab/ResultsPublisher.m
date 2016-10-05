@@ -46,7 +46,7 @@ classdef ResultsPublisher < handle
                         bool2str(obj.registration_obj.test_cases(i).differences.lighting), ...
                         bool2str(obj.registration_obj.test_cases(i).differences.scale), ...
                         bool2str(obj.registration_obj.test_cases(i).differences.multimodal), ...
-                        bool2mark(obj.registration_obj.test_cases(i).(['seqslam' num2str(obj.registration_obj.trajectory_mode)]).match), ...
+                        bool2mark(obj.registration_obj.test_cases(i).(['seqreg' num2str(obj.registration_obj.trajectory_mode)]).match), ...
                         bool2mark(obj.registration_obj.test_cases(i).cnn.match), ...
                         bool2mark(obj.registration_obj.test_cases(i).surf.match)));
 
@@ -78,7 +78,7 @@ classdef ResultsPublisher < handle
             assert(all(Total(:) == obj.registration_obj.test_totals(:)));
             SURF = obj.registration_obj.results.([obj.registration_obj.method num2str(obj.registration_obj.trajectory_mode)]);
 
-            obj.registration_obj.summ_testing('seqslam');
+            obj.registration_obj.summ_testing('seqreg');
             assert(all(Total(:) == obj.registration_obj.test_totals(:)));
             SeqSLAM = obj.registration_obj.results.([obj.registration_obj.method num2str(obj.registration_obj.trajectory_mode)]);
 
@@ -176,7 +176,7 @@ classdef ResultsPublisher < handle
 
 
             fprintf(f,'<table><tr><th width="400">SeqSLAM</th><th width="400">CNN</th><th width="500">SURF</th></tr><tr>');
-            modes = {'seqslam','cnn','surf'};
+            modes = {'seqreg','cnn','surf'};
             for i = 1:3
                 image = sprintf('%s%s_%i.gif',[obj.registration_obj.gifdir obj.registration_obj.method num2str(obj.registration_obj.trajectory_mode) '/'],modes{i},obj.registration_obj.curr_case);
                 if exist(image, 'file') == 2
@@ -190,7 +190,7 @@ classdef ResultsPublisher < handle
             fprintf(f,'</tr><tr>');
             
             for i = 1:3
-                if strcmp(modes{i},'seqslam')
+                if strcmp(modes{i},'seqreg')
                     add_mode = num2str(obj.registration_obj.trajectory_mode);
                 else
                     add_mode = '';

@@ -11,10 +11,10 @@ classdef NASApipeline < handle
         tform
         tform_status
         cnn_window = 0.02
-        network = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/deploy_conv1.prototxt'
-        network_col = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/deploy_conv1_3.prototxt'
-        model = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/imagenet_grey_weights.caffemodel'
-        model_col = '/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/bvlc_reference_caffenet.caffemodel'
+        network = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/deploy_conv1.prototxt'
+        network_col = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/deploy_conv1_3.prototxt'
+        model = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/imagenet_grey_weights.caffemodel'
+        model_col = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/bvlc_reference_caffenet.caffemodel'
         method
         patch_norm = 1
         maxdim = 400
@@ -161,7 +161,7 @@ classdef NASApipeline < handle
             
             rosinit;
             obj.ros_initialised = true;            
-            obj.seqregSrv = rossvcserver('/seqslam_tpp/seqslam','seqslam_tpp/MATLABSrv',@obj.seqregCallback);
+            obj.seqregSrv = rossvcserver('/seqreg_tpp/seqreg','seqreg_tpp/MATLABSrv',@obj.seqregCallback);
             
         end
         

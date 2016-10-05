@@ -237,7 +237,7 @@ classdef ImageRegistration < handle
 
            % paths
            addOptional(p,'kernel_path','/home/james/co/SeqSLAM_GPU',@ischar);
-           addOptional(p,'cnn_path','/home/james/ros_ws/src/seqslam_tpp/matlab/caffe/',@ischar);
+           addOptional(p,'cnn_path','/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/',@ischar);
            addOptional(p,'network','grey_def.prototxt',@ischar);
            addOptional(p,'network_col','colour_def.prototxt',@ischar);
            addOptional(p,'weights','grey_weights.caffemodel',@ischar);

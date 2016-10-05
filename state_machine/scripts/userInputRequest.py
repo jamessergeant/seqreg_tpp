@@ -1,7 +1,7 @@
 import rospy
 from rospy import ServiceException, ROSException
 import smach
-from seqslam_tpp.srv import UserSelection,UserSelectionRequest
+from seqreg_tpp.srv import UserSelection,UserSelectionRequest
 from sensor_msgs.msg import Image
 import pickle as pkl
 
@@ -21,7 +21,7 @@ class UserInputRequest(smach.State):
         self.action = action
         if self.action == 'user_request_initial' or self.action == 'user_reuse_initial' or self.action == 'load_existing':
             self.cv_bridge = cv_bridge.CvBridge()
-            srv_name = '/seqslam_tpp/user_input_request'
+            srv_name = '/seqreg_tpp/user_input_request'
             try:
                 rospy.wait_for_service(srv_name, timeout=1)
             except ROSException:

@@ -2,14 +2,14 @@
 import rospy
 import time
 import pickle
-from seqslam_tpp.srv import MATLABSrv
+from seqreg_tpp.srv import MATLABSrv
 
 class test_node:
 
     def __init__(self):
-        rospy.wait_for_service('/seqslam_tpp/seqslam', timeout=1)
+        rospy.wait_for_service('/seqreg_tpp/seqreg', timeout=1)
 
-        self.service = rospy.ServiceProxy('/seqslam_tpp/seqslam', MATLABSrv)
+        self.service = rospy.ServiceProxy('/seqreg_tpp/seqreg', MATLABSrv)
 
         # request = pickle.load(open('/home/james/Dropbox/NASA/test_msgs/1473211892068.pkl','rb'))
         # request = pickle.load(open('/home/james/Dropbox/NASA/test_msgs/1471565941813.pkl','rb'))
