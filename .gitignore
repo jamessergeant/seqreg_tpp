@@ -1,5 +1,6 @@
 matlab_gen/
 *.caffemodel
+*.prototxt
 *.mat
 matlab/web
 *~
