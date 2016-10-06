@@ -9,29 +9,29 @@ classdef ImagePair < handle
     %   Public Methods:
     %       None.
 
-    properties
+    properties (SetAccess = private)
         im1
         im1_fullres_gray
         im1_unpad_locnorm
+        im1_fullres
+        im1_fullres_unpad
+        im1_orig
+        im1_padding
+        im1_unpad
+        im1_unpad_double
         im2
         im2_fullres_gray
-        im1_fullres
         im2_unpad_locnorm
-        im1_fullres_unpad
-        im2_fullres_unpad
-        im1_orig
-        im2_orig
         im2_fullres
+        im2_fullres_unpad
+        im2_orig
+        im2_padding
+        im2_unpad
+        im2_unpad_double
     end
 
     properties(Access = private)
         scales
-        im1_padding
-        im1_unpad
-        im1_unpad_double
-        im2_padding
-        im2_unpad
-        im2_unpad_double
         gpu_processing
         GPU
         block_size
@@ -49,95 +49,32 @@ classdef ImagePair < handle
 
     methods
 
-        function obj = ImagePair(im1,im2,scales,varargin)
+        function obj = ImagePair(varargin)
 
             obj.parseInput(varargin);
+
+            % test if gpu available, load appropriate kernel
+            obj.gpu_load();
+
+        end
+        
+        function set_images(obj,im1,im2,scales)
 
             % set properties
             obj.im1 = im1;
             obj.im2 = im2;
             obj.scales = scales;
 
-            % test if gpu available, load appropriate kernel
-            obj.gpu_load();
-
             % perform image preprocessing steps (scaling, patch
             % normalisation
             obj.preprocess();
-
+            
         end
-
-        % modify set and get properties for the various images
-%         function set.im1(~,~)
-%             warning('You cannot set this property');
-%         end
-
-        function im_out = get.im1(obj)
-            im_out = obj.im1;
-        end
-
-%         function set.im1_fullres_gray(~,~)
-%             warning('You cannot set this property');
-%         end
-
-        function im_out = get.im1_fullres_gray(obj)
-            im_out = obj.im1_fullres_gray;
-        end
-
-%         function set.im1_unpad_locnorm(~,~)
-%             warning('You cannot set this property');
-%         end
-
-        function im_out = get.im1_unpad_locnorm(obj)
-            im_out = obj.im1_unpad_locnorm;
-        end
-
-%         function set.im2(~,~)
-%             warning('You cannot set this property');
-%         end
-
-        function im_out = get.im2(obj)
-            im_out = obj.im2;
-        end
-
-%         function set.im2_fullres_gray(~,~)
-%             warning('You cannot set this property');
-%         end
-
-        function im_out = get.im2_fullres_gray(obj)
-            im_out = obj.im2_fullres_gray;
-        end
-
-%         function set.im2_unpad_locnorm(~,~)
-%             warning('You cannot set this property');
-%         end
-
-        function im_out = get.im2_unpad_locnorm(obj)
-            im_out = obj.im2_unpad_locnorm;
-        end
-
-        function im_out = get.im1_fullres_unpad(obj)
-            im_out = obj.im1_fullres_unpad;
-        end
-
-        function im_out = get.im2_fullres_unpad(obj)
-            im_out = obj.im2_fullres_unpad;
-        end
-
-        function im_out = get.im1_fullres(obj)
-            im_out = obj.im1_fullres;
-        end
-
-        function im_out = get.im2_fullres(obj)
-            im_out = obj.im2_fullres;
-        end
-
-        function im_out = get.im1_orig(obj)
-            im_out = obj.im1_orig;
-        end
-
-        function im_out = get.im2_orig(obj)
-            im_out = obj.im2_orig;
+        
+        function update_parameters(varargin)
+            
+            obj.parseInput(varargin);
+            
         end
                 
         function toggle_vis(obj)
@@ -342,133 +279,6 @@ classdef ImagePair < handle
             im_out = gather(gpu_im_out);
             wait(obj.GPU)
         end
-
-
-%         function save_im(obj)
-%         % generate gif using the estimated transform
-%
-%             % test if the current case has successfully estimated a
-%             % transform
-%             if ~obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]).match
-%                 return
-%             end
-%
-%             % depending on method, use padded or unpadded image
-%             if strcmp(obj.method,'cnn')
-%                 im1f = obj.im1_fullres_unpad;
-%                 im2f = obj.im2_fullres_unpad;
-%             else
-%                 im1f = obj.im1_fullres;
-%                 im2f = obj.im2_fullres;
-%             end
-%
-%             % create number of frames, desired dimension
-%             nframes = 10;
-%             desdim = 800;
-%
-%             % different methods use different fixed and moving images,
-%             % should update this to make consistent
-%             if ~strcmp(obj.method,'cnn')
-%                 [xLimitsOut,yLimitsOut] = outputLimits(obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]).tform, [1 size(im2f,2)], [1 size(im2f,1)]);
-%
-%                 % Find the minimum and maximum output limits
-%                 xMin = min([1; xLimitsOut(:)]);
-%                 xMax = max([size(im1f,2); xLimitsOut(:)]);
-%                 yMin = min([1; yLimitsOut(:)]);
-%                 yMax = max([size(im1f,1); yLimitsOut(:)]);
-%
-%             else
-%                 [xLimitsOut,yLimitsOut] = outputLimits(obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]).tform, [1 size(im1f,2)], [1 size(im1f,1)]);
-%
-%                 % Find the minimum and maximum output limits
-%                 xMin = min([1; xLimitsOut(:)]);
-%                 xMax = max([size(im2f,2); xLimitsOut(:)]);
-%                 yMin = min([1; yLimitsOut(:)]);
-%                 yMax = max([size(im2f,1); yLimitsOut(:)]);
-%
-%             end
-%
-%             % Width, height and limits of outView
-%             width  = round(xMax - xMin);
-%             height = round(yMax - yMin);
-%             xLimits = [xMin xMax];
-%             yLimits = [yMin yMax];
-%             outView = imref2d([height width], xLimits, yLimits);
-%
-%             % apply identity transform to im2 to match size
-%             obj.im2_registered = imwarp(im2f, affine2d(eye(3)), 'OutputView', outView);
-%
-%             % apply estimated transform to im1
-%             registered = imwarp(im1f, obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]).tform, 'OutputView', outView);
-%
-%             % remove any excess padding from both images
-%             mask = obj.im2_registered == 0 & registered == 0;
-%             mask = prod(mask,3);
-%             mask_test = double(repmat(all(mask'),[size(mask,2),1]))' | double(repmat(all(mask),[size(mask,1),1]));
-%             obj.im2_registered = obj.im2_registered(~all(mask_test'),~all(mask_test),:);
-%             registered = registered(~all(mask_test'),~all(mask_test),:);
-%
-%             % resize to max dimension of desdim
-%             max_dim = max(size(registered));
-%             r_dim = [NaN NaN];
-%             r_dim(size(registered) == max_dim) = desdim;
-%             obj.im1_registered = imresize(registered,r_dim);
-%             obj.im2_registered = imresize(obj.im2_registered,r_dim);
-%
-%             % Generate gif
-%             outstring = sprintf('%s_%i',obj.method,obj.curr_case);
-%
-%             if ~isdir([obj.gifdir obj.method num2str(obj.trajectory_mode) '/' '/'])
-%                 mkdir([obj.gifdir obj.method num2str(obj.trajectory_mode) '/' '/']);
-%             end
-%
-%             framename = sprintf('%s%s.gif',[obj.gifdir obj.method num2str(obj.trajectory_mode) '/'],outstring)
-%
-%             start_end_delay = 0.5;
-%             normal_delay = 2.0 / nframes;
-%
-%             if length(size(obj.im1_registered)) == 2
-%                 third_dim = 1;
-%             else
-%                 third_dim = 3;
-%             end
-%
-%             for i = 1:nframes
-%
-%                 if i == 1 || i == (nframes) / 2 + 1
-%                     fdelay = start_end_delay;
-%                 else
-%                     fdelay = normal_delay;
-%                 end
-%
-%                 im1_fract = abs( (0.5 * nframes - (i - 1)) / (0.5 * nframes - 1));
-%
-%                 % Directional fade
-%                 if third_dim == 1
-%                     [imind1,cm1] = rgb2ind( repmat(uint8(im1_fract * obj.im2_registered + (1 - im1_fract) * obj.im1_registered), [1 1 3]), 256);
-%                 else
-%                     [imind1,cm1] = rgb2ind( uint8(im1_fract * obj.im2_registered + (1 - im1_fract) * obj.im1_registered), 256);
-%                 end
-%
-%                 if i == 1
-%                     imwrite(imind1, cm1, framename, 'gif', 'Loopcount', inf, 'DelayTime', fdelay);
-%                 else
-%                     imwrite(imind1, cm1, framename, 'gif', 'WriteMode', 'append', 'DelayTime', fdelay);
-%                 end
-%
-%             end
-%
-%             % open gif externally of visuals toggled on
-%             if obj.gif_visuals
-%                 unix(['gnome-open ' framename]);
-%             end
-%
-%             % regenerate the results page for this case
-%             obj.results_publisher = ResultsPublisher(obj);
-%             obj.results_publisher.generate_html();
-%
-%         end
-
 
     end
 

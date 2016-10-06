@@ -2,7 +2,8 @@ classdef ResultsPublisher < handle
     
     properties
         registration_obj
-        
+        type_table
+        test_totals
     end
     
     methods
@@ -63,31 +64,31 @@ classdef ResultsPublisher < handle
         % generate the category/method results table and generate the
         % summarised results page
 
-            obj.registration_obj.type_table = unique(combntns([0 1 0 1 0 1 0 1 0 1 0 1],6),'rows');
+            obj.type_table = unique(combntns([0 1 0 1 0 1 0 1 0 1 0 1],6),'rows');
 
             obj.registration_obj.summ_testing('cnn');
-            Total = obj.registration_obj.test_totals;
+            Total = obj.test_totals;
             ind = Total ~= 0;
             Total = Total(ind);
-            obj.registration_obj.type_table = obj.registration_obj.type_table(ind,:);
+            obj.type_table = obj.type_table(ind,:);
             CNN = obj.registration_obj.results.([obj.registration_obj.method num2str(obj.registration_obj.trajectory_mode)]);
             CNN = CNN(ind);
             obj.registration_obj.results.([obj.registration_obj.method num2str(obj.registration_obj.trajectory_mode)]) = CNN;
 
             obj.registration_obj.summ_testing('surf');
-            assert(all(Total(:) == obj.registration_obj.test_totals(:)));
+            assert(all(Total(:) == obj.test_totals(:)));
             SURF = obj.registration_obj.results.([obj.registration_obj.method num2str(obj.registration_obj.trajectory_mode)]);
 
             obj.registration_obj.summ_testing('seqreg');
-            assert(all(Total(:) == obj.registration_obj.test_totals(:)));
+            assert(all(Total(:) == obj.test_totals(:)));
             SeqSLAM = obj.registration_obj.results.([obj.registration_obj.method num2str(obj.registration_obj.trajectory_mode)]);
 
-            Image1 = obj.registration_obj.type_table(:,1);
-            Image2 = obj.registration_obj.type_table(:,2);
-            Translation = obj.registration_obj.type_table(:,3);
-            Lighting = obj.registration_obj.type_table(:,4);
-            Scale = obj.registration_obj.type_table(:,5);
-            Multimodal = obj.registration_obj.type_table(:,6);
+            Image1 = obj.type_table(:,1);
+            Image2 = obj.type_table(:,2);
+            Translation = obj.type_table(:,3);
+            Lighting = obj.type_table(:,4);
+            Scale = obj.type_table(:,5);
+            Multimodal = obj.type_table(:,6);
 
             obj.registration_obj.results.table = table(Image1,Image2,Translation,Lighting,Scale,Multimodal,SeqSLAM,CNN,SURF,Total);
             obj.registration_obj.results.table
@@ -97,6 +98,39 @@ classdef ResultsPublisher < handle
             obj.generate_home();
 
         end
+        
+        function summ_testing(obj,method)
+        % summarise test results for a particular method
+
+            obj.method = method;
+
+            counts = zeros(size(obj.type_table,1),1);
+            total_counts = zeros(size(obj.type_table,1),1);
+
+            for i = 1:length(obj.registration_obj.test_cases)
+
+                code = [obj.registration_obj.test_cases(i).Image1.mcc ...
+                    obj.registration_obj.test_cases(i).Image2.mcc ...
+                    obj.registration_obj.test_cases(i).differences.translation ...
+                    obj.registration_obj.test_cases(i).differences.lighting ...
+                    obj.registration_obj.test_cases(i).differences.scale ...
+                    obj.registration_obj.test_cases(i).differences.multimodal];
+
+                ind = find(ismember(obj.type_table,code,'rows'));
+
+                total_counts(ind) = total_counts(ind) + 1;
+                if strcmp(obj.method,'seqreg')
+                    counts(ind) = counts(ind) + obj.registration_obj.test_cases(i).([obj.method num2str(obj.trajectory_mode)]).match;
+                else
+                    counts(ind) = counts(ind) + obj.registration_obj.test_cases(i).(obj.method).match;
+                end
+            end
+
+            obj.results.([obj.method num2str(obj.trajectory_mode)]) = counts;
+
+            obj.test_totals = total_counts;
+
+        end % end summ_testing
 
         function string = header_html(obj)
 

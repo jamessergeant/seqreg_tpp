@@ -30,6 +30,7 @@ classdef ImageRegistration < handle
         model_col
         cnn_path
         model_loaded = false
+        num_cnn_features
         
         % SeqReg Parameters & Flags
         step_size
@@ -86,6 +87,8 @@ classdef ImageRegistration < handle
             
             % set flags
             obj.images_unset = true;
+            
+            obj.load_gpu();
             
             obj.load_model();
             
@@ -249,7 +252,7 @@ classdef ImageRegistration < handle
            % SeqReg Parameters
            addOptional(p,'step_size',20,@isnumeric);
            addOptional(p,'seq_len',100,@isnumeric);
-           addOptional(p,'search_fract',0.1,@isnumeric);
+           addOptional(p,'search_fract',0.4,@isnumeric);
            addOptional(p,'border',0.1,@isnumeric);
            addOptional(p,'num_steps',5,@isnumeric);
            addOptional(p,'trajectory_mode',0,@isnumeric);
@@ -258,6 +261,7 @@ classdef ImageRegistration < handle
 
            % CNN parameters
            addOptional(p,'cnn_window',0.02,@isnumeric);
+           addOptional(p,'num_cnn_features',1000,@isnumeric);           
 
            parse(p,in_args{:});
            
@@ -267,6 +271,31 @@ classdef ImageRegistration < handle
                obj.(fields{i}) = p.Results.(fields{i});
            end
            
+        end
+
+        function gpu_load(obj)
+
+            obj.gpu_processing = false;
+
+            for i=1:gpuDeviceCount
+                if parallel.gpu.GPUDevice.isAvailable(i)
+                    obj.GPU = parallel.gpu.GPUDevice.getDevice(i);
+                    obj.gpu_processing = true;
+                    disp([class(obj) ': GPU found!']);
+                    break;
+                end
+            end
+
+            if obj.gpu_processing
+                ptx_path = [obj.kernel_path '/SeqSLAM_kernel.ptx'];
+                cu_path = [obj.kernel_path '/SeqSLAM_kernel.cu'];
+
+                obj.block_size = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
+
+                wait(obj.GPU);
+
+            end
+
         end
 
         function results = get_results(obj)
@@ -1091,20 +1120,20 @@ classdef ImageRegistration < handle
             s1 = size(im1_conv1);
             s2 = size(im2_conv1);
 
-            points1 = [];
-            points2 = [];
+            points1 = zeros([obj.num_cnn_features,2]);
+            points2 = zeros([obj.num_cnn_features,2]);
 
             im1_conv1_ = im1_conv1;
             im2_conv1_ = im2_conv1;
 
-            for i = 1:1000 % TODO: make this a parameter
+            for i = 1:obj.num_cnn_features
                 [~,m] = max(im1_conv1(:));
                 [a,b] = ind2sub(size(im1_conv1),m);
-                points1 = [points1; a b];
+                points1(i,:) = [a b];
                 im1_conv1(max(1,a-n1(1)):min(s1(1),a+n1(1)),max(1,b-n1(2)):min(s1(2),b+n1(2))) = 0;
                 [~,m] = max(im2_conv1(:));
                 [a,b] = ind2sub(size(im2_conv1),m);
-                points2 = [points2; a b];
+                points2(i,:) = [a b];
                 im2_conv1(max(1,a-n2(1)):min(s2(1),a+n2(1)),max(1,b-n2(2)):min(s2(2),b+n2(2))) = 0;
             end
 

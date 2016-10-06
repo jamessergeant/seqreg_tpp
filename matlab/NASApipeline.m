@@ -6,114 +6,28 @@ classdef NASApipeline < handle
         known_bad_cases
         test_cases
         curr_case
-        weights
-        weights_col
-        tform
-        tform_status
-        cnn_window = 0.02
-        network = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/deploy_conv1.prototxt'
-        network_col = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/deploy_conv1_3.prototxt'
-        model = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/imagenet_grey_weights.caffemodel'
-        model_col = '/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/bvlc_reference_caffenet.caffemodel'
         method
-        patch_norm = 1
-        maxdim = 400
-        qsf = 1          % ? scale factor?
-        step_size = 20   % step size
-        seq_len = 100    % seq length
-        minstd = 0.1;   % min std for use in patch normalisation
-        ps
-        nps
         trans_limit = 0.15
-        im1
-        im2
-        im1_test
-        im2_test
-        im1_unpad
-        im2_unpad
-        im1_orig
-        im2_orig
-        im1_fullres
-        im2_fullres
-        im1_fullres_unpad
-        im2_fullres_unpad
-        im1_fullres_gray
-        im2_fullres_gray
-        im1_reg
-        im2_reg
-        im1_registered
-        im2_registered
-        fixedPoints
-        movingPoints
-        search_fract = 0.1; % region of image to use
-        xres
-        yres
-        border = 0.1;   % ignore border cases
-        num_steps = 5; %no. trajectory steps
         visuals = false
-        strongest_match = 0; % initialise strogest match, not actually used?
-        save_dir = '/home/james/Dropbox/NASA/SeqSLAM/'
-        ros_gifdir = '/home/james/Dropbox/NASA/baxter_experiments/gifs/'
-        gifdir = '/home/james/datasets/pixl-watson/'
-        results = {}
-        test_totals
-        type_table
-        matchedOriginal
-        matchedDistorted
-        InitialImage
-        watsonOrig
-        pixlImage
-        ros_scale
-        curr_trial
+        save_dir = '/home/james/testing'
+        gif_dir = '/home/james/datasets/pixl-watson/gifs/'
+        dataset_dir = '/home/james/datasets/pixl-watson'
+        results
         seqregSrv
         save_images = false
-        gpu_locnorm
-        gpu_out1
-        gpu_out2
-        gpu_rgb2gray
-        gpu_processing = false
-        gpu_processing_fail = false
-        gpu_devel_mode = false
-        gpu_trajshift
-        gpu_xchist
-        im1_gpu
-        im2_gpu
-        gpu_normxcorr2
-        GPU
-        block_size_num_steps
-        block_size1
-        save_string
-        gpu_sad2
-        scales
-        random_startpoints = false
-        semi_random_startpoints = false
-        random_trajectories = false
-        fullspread = false
         trajectory_mode = 0
-        random_trajectories_experimental = false
-        random_scale = 0.2
-        traj_strengths = [];
-        filter_points = false;
-        test_points_used = false;
-        fraction_pts_used ;
-        im1_padding
-        im2_padding
-        im1_unpad_double
-        im1_unpad_locnorm
-        im2_unpad_double
-        im2_unpad_locnorm
-        min_pts_used
         min_pts_required = 4;
         min_fraction_pts_used = 0.1
-        curr_seq_len
-        curr_step_size
-        gif_visuals = false
-        curr_ps
         ros_initialised
         results_publisher
-        kernel_path = '/home/james/co/SeqSLAM_GPU';
         registrator
         image_pair
+        save_frequency = 10;
+        ros_save_frequency = 1;
+        results_frequency = 100;
+        save_gif = true;
+        open_gif = false;
+        parameters
     end
 %%
     methods
@@ -139,7 +53,7 @@ classdef NASApipeline < handle
             obj.init();
 
         end % end NASApipeline
-%%
+        
         function init(obj)
         % initialise the object, can be used to reinitialise when reloading
             close all
@@ -147,12 +61,14 @@ classdef NASApipeline < handle
                         
             obj.results_publisher = ResultsPublisher(obj);
             
-            obj.registrator = ImageRegistration();
+            obj.registrator = ImageRegistration(struct2optarg(obj.parameters.image_registration));
             
-            obj.init_ros();                       
+            obj.init_ros();  
+            
+            obj.image_pair = ImagePair(struct2optarg(obj.parameters.image_pair));
 
         end % end init
-%%
+        
         function init_ros(obj)
             
             if obj.ros_initialised
@@ -165,21 +81,18 @@ classdef NASApipeline < handle
             
         end
         
-%%
         % accepts custom srv type
         function res = seqregCallback(obj,~,req,res)
             
-            fprintf('%s started\n',req.Method.Data);
+            warning('off','MATLAB:structOnObject');
+            
+            fprintf('Service call received for %s\n',req.Method.Data);
 
             [initial_image,~] = readImage(req.InitialImage);
             
             [secondary_image,~] = readImage(req.SecondaryImage);
-            
-%             obj.save_string = num2str(req.SecondaryImage.Header.Stamp.Sec);
-                        
+                                    
             obj.image_pair = ImagePair(initial_image,secondary_image,req.Scales.Data');
-            
-%             obj.curr_trial = obj.curr_trial + 1;
             
             fprintf('Initial registration with SeqSLAM to estimate new pose\n');
             
@@ -193,10 +106,13 @@ classdef NASApipeline < handle
             % perform image registration, returns ImageRegistrationResult
             % object
             obj.results = obj.registrator.process(req.Method.Data,obj.image_pair);
-                        
-%             obj.ros_save_im();
             
             if obj.results.registration_successful
+            
+                if obj.save_images
+                    obj.warp_im();
+                    obj.generate_gif(obj.gif_dir, ['ros_' obj.method num2str(obj.trajectory_mode)], ['ros_' obj.method '_' obj.curr_case]);
+                end
 
                 fprintf('Initial Registration\n\tEstimated Scale:\t%0.3f\n\tEstimated Rotation:\t%0.3f\n\tTrans X: %0.3f\n\tTrans Y: %0.3f\n\tPoints Used: %s\n\tFraction Points: %0.3f\n',obj.results.scaleRecovered,obj.results.thetaRecovered,obj.results.tform.T(3,2),obj.results.tform.T(3,1),bool2str(obj.results.min_pts_used),obj.results.fraction_pts_used);
 
@@ -220,13 +136,18 @@ classdef NASApipeline < handle
             
             if obj.visuals
                 close all
-                imshowpair(obj.im1_registered,obj.im2_registered)
+                imshowpair(obj.results.im1_registered,obj.results.im2_registered)
             end
             
-            obj.save_prog();
+            
+            obj.ros_results(end + 1) = struct('request', req, 'response', res, 'results', struct(obj.results));
+            
+            if mod(length(obj.ros_results),obj.save_frequency) == 0
+                obj.save_prog();
+            end
 
         end
-%%
+        
         function toggle_vis(obj)
         % toggle visuals flag which can be used throughout for
         % visualising alignments
@@ -250,7 +171,9 @@ classdef NASApipeline < handle
 
         end % end toggle_save
         
-        function [match,message] = test_match(obj)
+        % Dataset only: test if alignment is correct
+        function [match,message] = test_match(obj,im1,im2)
+            
             match = true;
             message = '';
             
@@ -327,8 +250,8 @@ classdef NASApipeline < handle
             
             if ~isempty(obj.results.tform)
 
-                im1sz = size(obj.im1);
-                im2sz = size(obj.im2);
+                im1sz = size(im1);
+                im2sz = size(im2);
 
                 imsz = [max(im1sz(1), im2sz(1)) max(im1sz(2), im2sz(2))];
 
@@ -342,7 +265,6 @@ classdef NASApipeline < handle
 
                 diff_X = obj.test_cases(obj.curr_case).Image1.Translation_X - obj.test_cases(obj.curr_case).Image2.Translation_X;
                 diff_Y = obj.test_cases(obj.curr_case).Image1.Translation_Y - obj.test_cases(obj.curr_case).Image2.Translation_Y;
-
 
                 if abs(obj.results.tform.T(3,2) + v + diff_Y*im1sz(1)/2) > obj.trans_limit * imsz(1) || abs(obj.results.tform.T(3,1) + u + diff_X*im1sz(2)/2) > obj.trans_limit * imsz(2)
 
@@ -362,53 +284,14 @@ classdef NASApipeline < handle
         % save the object to backup results
 
             d = clock;
-            nasa = obj;
-            save(sprintf('%snasa-%i%02i%02i.mat',obj.save_dir,d(1),d(2),d(3)),'nasa');
+            nasa = obj; %#ok<NASGU>
+            save(sprintf('%s/nasa-%i%02i%02i.mat',obj.save_dir,d(1),d(2),d(3)),'nasa');
 
         end
         
-        function summ_testing(obj,method)
-        % summarise test results for a particular method
-
-            obj.method = method;
-
-            counts = zeros(size(obj.type_table,1),1);
-            total_counts = zeros(size(obj.type_table,1),1);
-
-            for i = 1:length(obj.test_cases)
-
-                if any(obj.known_bad_cases == i)
-
-                    continue
-
-                end
-
-                code = [obj.test_cases(i).Image1.mcc ...
-                    obj.test_cases(i).Image2.mcc ...
-                    obj.test_cases(i).differences.translation ...
-                    obj.test_cases(i).differences.lighting ...
-                    obj.test_cases(i).differences.scale ...
-                    obj.test_cases(i).differences.multimodal];
-
-                ind = find(ismember(obj.type_table,code,'rows'));
-
-                total_counts(ind) = total_counts(ind) + 1;
-                if strcmp(obj.method,'seqreg')
-                    counts(ind) = counts(ind) + obj.test_cases(i).([obj.method num2str(obj.trajectory_mode)]).match;
-                else
-                    counts(ind) = counts(ind) + obj.test_cases(i).(obj.method).match;
-                end
-            end
-
-            obj.results.([obj.method num2str(obj.trajectory_mode)]) = counts;
-
-            obj.test_totals = total_counts;
-
-        end % end summ_testing
-        
-        function test_allcasesmodes(obj,varargin)
+        function test_dataset(obj,varargin)
         % test all or some cases using all methods
-
+            warning('off','MATLAB:structOnObject');
             if nargin > 1
                 a = varargin{1};
                 b = varargin{2};
@@ -425,55 +308,185 @@ classdef NASApipeline < handle
 
             for i = a:c:b
                 
-                disp(['Processing case ' num2str(i)]);
+                fprintf(['\nProcessing case ' num2str(i) '\n']);
                 obj.curr_case = i;
-
-                im1 = imread(obj.test_cases(obj.curr_case).Image1.Exposure);
-                im2 = imread(obj.test_cases(obj.curr_case).Image2.Exposure);
-                scales = 1./[obj.test_cases(obj.curr_case).Image2.Extension obj.test_cases(obj.curr_case).Image1.Extension];
                 
-                obj.image_pair = ImagePair(im1,im2,scales);
+                im1_current = imread([obj.dataset_dir '/' obj.test_cases(obj.curr_case).Image1.Exposure]);
+                im2_current = imread([obj.dataset_dir '/' obj.test_cases(obj.curr_case).Image2.Exposure]);
+                scales_current = 1./[obj.test_cases(obj.curr_case).Image2.Extension obj.test_cases(obj.curr_case).Image1.Extension];
+                
+                obj.image_pair.set_images(im1_current,im2_current,scales_current);
                 
 %                 tic
 %                 obj.method = 'cnn';
 %                 obj.results = obj.registrator.process(obj.method,obj.image_pair);
-%                 obj.im1 = obj.image_pair.im1_orig;
-%                 obj.im2 = obj.image_pair.im2_orig;
-%                 obj.test_match();
-%                 obj.test_cases(obj.curr_case).(obj.method) = struct(obj.results);
-%                 obj.save_im();
+%                 obj.test_match(obj.image_pair.im1_orig,obj.image_pair.im2_orig);
+%                 obj.test_cases(obj.curr_case).(obj.method) = struct(obj.results);            
+%                 if obj.save_images
+%                     obj.warp_im();
+%                     obj.generate_gif(obj.gif_dir, obj.method, [obj.method '_' obj.curr_case]);
+%                 end
 %                 fprintf('CNN Time: %0.4f\n',toc)
                 
                 tic
                 obj.method = 'surf';
                 obj.results = obj.registrator.process(obj.method,obj.image_pair);
-                obj.im1 = obj.image_pair.im1_fullres_gray;
-                obj.im2 = obj.image_pair.im2_fullres_gray;
-                obj.test_match();
-                warning off
-                obj.test_cases(obj.curr_case).(obj.method) = struct(obj.results);
-                warning on
-%                 obj.save_im();
-                
+                obj.test_match(obj.image_pair.im1_fullres_gray,obj.image_pair.im2_fullres_gray);
+                obj.test_cases(obj.curr_case).(obj.method) = struct(obj.results); 
+                if obj.save_images && obj.results.match
+                    obj.warp_im();
+                    obj.generate_gif(obj.gif_dir, obj.method, [obj.method '_' obj.curr_case]);
+                end                
                 fprintf('SURF Time: %0.4f\n',toc)
                 
                 tic
                 obj.method = 'seqreg';
                 obj.registrator.set_trajectory_mode(obj.trajectory_mode);
                 obj.results = obj.registrator.process(obj.method,obj.image_pair);
-                obj.im1 = obj.image_pair.im1;
-                obj.im2 = obj.image_pair.im2;
-                obj.test_match();
-                warning off
-                obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]) = struct(obj.results);
-                warning on
-%                 obj.save_im();
+                obj.test_match(obj.image_pair.im1,obj.image_pair.im2);
+                obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]) = struct(obj.results);  
+                if obj.save_images && obj.results.match
+                    obj.warp_im();
+                    obj.generate_gif(obj.gif_dir, [obj.method num2str(obj.trajectory_mode)], [obj.method '_' obj.curr_case]);
+                end                
                 fprintf('SeqReg Time: %0.4f\n',toc)
                 
-%                 obj.save_prog();
+                if mod(i,obj.save_frequency) == 0
+                    obj.save_prog();
+                end
+                
+%                 obj.results_publisher.generate_html();
+%                 
+%                 if mod(i,obj.results_frequency) == 0
+%                     obj.results_publisher.update_home();
+%                     obj.results_publisher.generate_fullresultshtml();
+%                 end
 
             end
 
+        end
+        
+        
+
+        function warp_im(obj)
+        % warp images based on returned registration transform
+
+            % depending on method, use padded or unpadded image
+            if strcmp(obj.method,'cnn')
+                im1f = obj.image_pair.im1_fullres_unpad;
+                im2f = obj.image_pair.im2_fullres_unpad;
+            else
+                im1f = obj.image_pair.im1_fullres;
+                im2f = obj.image_pair.im2_fullres;
+            end
+
+            % create number of frames, desired dimension
+            desdim = 800;
+
+            % different methods use different fixed and moving images,
+            % should update this to make consistent
+            if ~strcmp(obj.method,'cnn')
+                [xLimitsOut,yLimitsOut] = outputLimits(obj.results.tform, [1 size(im2f,2)], [1 size(im2f,1)]);
+
+                % Find the minimum and maximum output limits
+                xMin = min([1; xLimitsOut(:)]);
+                xMax = max([size(im1f,2); xLimitsOut(:)]);
+                yMin = min([1; yLimitsOut(:)]);
+                yMax = max([size(im1f,1); yLimitsOut(:)]);
+
+            else
+                [xLimitsOut,yLimitsOut] = outputLimits(obj.results.tform, [1 size(im1f,2)], [1 size(im1f,1)]);
+
+                % Find the minimum and maximum output limits
+                xMin = min([1; xLimitsOut(:)]);
+                xMax = max([size(im2f,2); xLimitsOut(:)]);
+                yMin = min([1; yLimitsOut(:)]);
+                yMax = max([size(im2f,1); yLimitsOut(:)]);
+
+            end
+
+            % Width, height and limits of outView
+            width  = round(xMax - xMin);
+            height = round(yMax - yMin);
+            xLimits = [xMin xMax];
+            yLimits = [yMin yMax];
+            outView = imref2d([height width], xLimits, yLimits);
+
+            % apply identity transform to im2 to match size
+            im2_registered = imwarp(im2f, affine2d(eye(3)), 'OutputView', outView);
+
+            % apply estimated transform to im1
+            registered = imwarp(im1f, obj.results.tform, 'OutputView', outView);
+
+            % remove any excess padding from both images
+            mask = im2_registered == 0 & registered == 0;
+            mask = prod(mask,3);
+            mask_test = double(repmat(all(mask'),[size(mask,2),1]))' | double(repmat(all(mask),[size(mask,1),1]));
+            im2_registered = im2_registered(~all(mask_test'),~all(mask_test),:);
+            registered = registered(~all(mask_test'),~all(mask_test),:);
+
+            % resize to max dimension of desdim
+            max_dim = max(size(registered));
+            r_dim = [NaN NaN];
+            r_dim(size(registered) == max_dim) = desdim;
+            im1_registered = imresize(registered,r_dim);
+            im2_registered = imresize(im2_registered,r_dim);
+            
+            obj.results.im1_registered = im1_registered;
+            obj.results.im2_registered = im2_registered;
+
+        end
+        
+        function generate_gif(obj,base_dir,sub_dir,filename)
+            % for visaulising alignment, generate gif
+                
+            nframes = 10;
+            
+            if ~isdir([base_dir '/' sub_dir '/'])
+                mkdir([base_dir '/' sub_dir '/']);
+            end
+
+            framename = [base_dir '/' sub_dir '/' filename '.gif'];
+
+            start_end_delay = 0.5;
+            normal_delay = 2.0 / nframes;
+
+            if length(size(obj.results.im1_registered)) == 2
+                third_dim = 1;
+            else
+                third_dim = 3;
+            end
+
+            for i = 1:nframes
+
+                if i == 1 || i == (nframes) / 2 + 1
+                    fdelay = start_end_delay;
+                else
+                    fdelay = normal_delay;
+                end
+
+                im1_fract = abs( (0.5 * nframes - (i - 1)) / (0.5 * nframes - 1));
+
+                % Directional fade
+                if third_dim == 1
+                    [imind1,cm1] = rgb2ind( repmat(uint8(im1_fract * obj.results.im2_registered + (1 - im1_fract) * obj.results.im1_registered), [1 1 3]), 256);
+                else
+                    [imind1,cm1] = rgb2ind( uint8(im1_fract * obj.results.im2_registered + (1 - im1_fract) * obj.results.im1_registered), 256);
+                end
+
+                if i == 1
+                    imwrite(imind1, cm1, framename, 'gif', 'Loopcount', inf, 'DelayTime', fdelay);
+                else
+                    imwrite(imind1, cm1, framename, 'gif', 'WriteMode', 'append', 'DelayTime', fdelay);
+                end
+
+            end                
+
+            % open gif externally of visuals toggled on
+            if obj.open_gif
+                unix(['gnome-open ' framename]);
+            end
+                
         end
 
     end
