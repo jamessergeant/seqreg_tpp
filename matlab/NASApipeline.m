@@ -7,7 +7,6 @@ classdef NASApipeline < handle
         test_cases
         curr_case
         method
-        trans_limit = 0.15
         visuals = false
         save_dir = '/home/james/testing'
         gif_dir = '/home/james/datasets/pixl-watson/gifs/'
@@ -22,9 +21,6 @@ classdef NASApipeline < handle
         results_publisher
         registrator
         image_pair
-        save_frequency = 10;
-        ros_save_frequency = 1;
-        results_frequency = 100;
         save_gif = true;
         open_gif = false;
         parameters
@@ -35,20 +31,6 @@ classdef NASApipeline < handle
 %%
         function obj = NASApipeline(varargin)
         % NASApipeline constructor
-        % Supply a vector of structures with the fields:
-        %   Image1      A structure containing information about Image1
-        %   Image2      A structure containing information about Image2
-        %   context     The sample number
-        %   differences A structure specifying translation, lighting,
-        %               scale and multimodal differences
-        %   seqreg     An empty structure for storing SeqSLAM results
-        %   cnn         An empty structure for storing CNN results
-        %   surf        An empty structure for storing SURF results
-
-            if nargin > 0
-                obj.test_cases = varargin{1};
-                obj.curr_case = 1;
-            end
 
             obj.init();
 
@@ -61,11 +43,13 @@ classdef NASApipeline < handle
                         
             obj.results_publisher = ResultsPublisher(obj);
             
-            obj.registrator = ImageRegistration(struct2optarg(obj.parameters.image_registration));
+            in_args = struct2optarg(obj.parameters.image_registration);
+            obj.registrator = ImageRegistration(in_args{:});
             
-            obj.init_ros();  
+            obj.init_ros(); 
             
-            obj.image_pair = ImagePair(struct2optarg(obj.parameters.image_pair));
+            in_args = struct2optarg(obj.parameters.image_pair);
+            obj.image_pair = ImagePair(in_args{:});
 
         end % end init
         
@@ -77,7 +61,8 @@ classdef NASApipeline < handle
             
             rosinit;
             obj.ros_initialised = true;            
-            obj.seqregSrv = rossvcserver('/seqreg_tpp/seqreg','seqreg_tpp/MATLABSrv',@obj.seqregCallback);
+            
+            obj.seqregSrv = rossvcserver('/seqreg_tpp/seqreg','user_input/MATLABSrv',@obj.seqregCallback);
             
         end
         
@@ -116,7 +101,7 @@ classdef NASApipeline < handle
 
                 fprintf('Initial Registration\n\tEstimated Scale:\t%0.3f\n\tEstimated Rotation:\t%0.3f\n\tTrans X: %0.3f\n\tTrans Y: %0.3f\n\tPoints Used: %s\n\tFraction Points: %0.3f\n',obj.results.scaleRecovered,obj.results.thetaRecovered,obj.results.tform.T(3,2),obj.results.tform.T(3,1),bool2str(obj.results.min_pts_used),obj.results.fraction_pts_used);
 
-                if abs(1 - obj.results.scaleRecovered) < 2.0 && abs(obj.results.thetaRecovered) < 10 && obj.results.percentPtsUsed > obj.min_fraction_pts_used && obj.results.min_pts_used
+                if abs(1 - obj.results.scaleRecovered) < obj.parameters.ros.scale_tolerance && abs(obj.results.thetaRecovered) < obj.parameters.ros.rotation_tolerance %&& obj.results.percentPtsUsed > obj.min_fraction_pts_used && obj.results.min_pts_used
                     res.Results.Data = [scaleRecovered thetaRecovered obj.tform.T(3,2) obj.tform.T(3,1)];
                     res.Success.Data = true;
                     res.Message.Data = ['Registration with ' req.Method.Data ' succeeded!'];
@@ -142,7 +127,7 @@ classdef NASApipeline < handle
             
             obj.ros_results(end + 1) = struct('request', req, 'response', res, 'results', struct(obj.results));
             
-            if mod(length(obj.ros_results),obj.save_frequency) == 0
+            if mod(length(obj.ros_results),obj.parameters.ros.save_frequency) == 0
                 obj.save_prog();
             end
 
@@ -205,7 +190,7 @@ classdef NASApipeline < handle
 
             if ~isempty(obj.results.scaleRecovered)
 
-                if obj.results.scaleRecovered < 0.5 || obj.results.scaleRecovered > 5
+                if obj.results.scaleRecovered < obj.parameters.dataset.min_scale || obj.results.scaleRecovered > obj.parameters.dataset.max_scale
 
                     message = strcat(message,'Scale. ');
 
@@ -217,7 +202,7 @@ classdef NASApipeline < handle
 
             if ~isempty(obj.results.thetaRecovered)
 
-                if abs(obj.results.thetaRecovered) > 15
+                if abs(obj.results.thetaRecovered) > obj.parameters.dataset.rotation_tolerance
 
                     message = strcat(message,'Rotation. ');
 
@@ -266,7 +251,7 @@ classdef NASApipeline < handle
                 diff_X = obj.test_cases(obj.curr_case).Image1.Translation_X - obj.test_cases(obj.curr_case).Image2.Translation_X;
                 diff_Y = obj.test_cases(obj.curr_case).Image1.Translation_Y - obj.test_cases(obj.curr_case).Image2.Translation_Y;
 
-                if abs(obj.results.tform.T(3,2) + v + diff_Y*im1sz(1)/2) > obj.trans_limit * imsz(1) || abs(obj.results.tform.T(3,1) + u + diff_X*im1sz(2)/2) > obj.trans_limit * imsz(2)
+                if abs(obj.results.tform.T(3,2) + v + diff_Y*im1sz(1)/2) > obj.parameters.dataset.translation_limit * imsz(1) || abs(obj.results.tform.T(3,1) + u + diff_X*im1sz(2)/2) > obj.parameters.dataset.translation_limit * imsz(2)
 
                     message = strcat(message,'Translation. ');
 
@@ -292,6 +277,8 @@ classdef NASApipeline < handle
         function test_dataset(obj,varargin)
         % test all or some cases using all methods
             warning('off','MATLAB:structOnObject');
+            warning('off','robotics:ros:common:SavedObjectInvalid');
+            
             if nargin > 1
                 a = varargin{1};
                 b = varargin{2};
@@ -317,47 +304,47 @@ classdef NASApipeline < handle
                 
                 obj.image_pair.set_images(im1_current,im2_current,scales_current);
                 
-%                 tic
-%                 obj.method = 'cnn';
-%                 obj.results = obj.registrator.process(obj.method,obj.image_pair);
-%                 obj.test_match(obj.image_pair.im1_orig,obj.image_pair.im2_orig);
-%                 obj.test_cases(obj.curr_case).(obj.method) = struct(obj.results);            
-%                 if obj.save_images
-%                     obj.warp_im();
-%                     obj.generate_gif(obj.gif_dir, obj.method, [obj.method '_' obj.curr_case]);
-%                 end
-%                 fprintf('CNN Time: %0.4f\n',toc)
+                tic
+                obj.method = 'cnn';
+                obj.results = obj.registrator.process(obj.method,obj.image_pair);
+                fprintf('CNN Time: %0.4f\n',toc)
+                obj.test_match(obj.image_pair.im1_orig,obj.image_pair.im2_orig);
+                obj.test_cases(obj.curr_case).(obj.method) = struct(obj.results);            
+                if obj.save_images && obj.results.match
+                    obj.warp_im();
+                    obj.generate_gif(obj.gif_dir, obj.method, [obj.method '_' obj.curr_case]);
+                end
                 
                 tic
                 obj.method = 'surf';
                 obj.results = obj.registrator.process(obj.method,obj.image_pair);
+                fprintf('SURF Time: %0.4f\n',toc)
                 obj.test_match(obj.image_pair.im1_fullres_gray,obj.image_pair.im2_fullres_gray);
                 obj.test_cases(obj.curr_case).(obj.method) = struct(obj.results); 
                 if obj.save_images && obj.results.match
                     obj.warp_im();
                     obj.generate_gif(obj.gif_dir, obj.method, [obj.method '_' obj.curr_case]);
                 end                
-                fprintf('SURF Time: %0.4f\n',toc)
                 
                 tic
                 obj.method = 'seqreg';
                 obj.registrator.set_trajectory_mode(obj.trajectory_mode);
                 obj.results = obj.registrator.process(obj.method,obj.image_pair);
+                fprintf('SeqReg Time: %0.4f\n',toc)
                 obj.test_match(obj.image_pair.im1,obj.image_pair.im2);
                 obj.test_cases(obj.curr_case).([obj.method num2str(obj.trajectory_mode)]) = struct(obj.results);  
                 if obj.save_images && obj.results.match
                     obj.warp_im();
                     obj.generate_gif(obj.gif_dir, [obj.method num2str(obj.trajectory_mode)], [obj.method '_' obj.curr_case]);
                 end                
-                fprintf('SeqReg Time: %0.4f\n',toc)
                 
-                if mod(i,obj.save_frequency) == 0
+                if mod(i,obj.parameters.dataset.save_frequency) == 0
                     obj.save_prog();
                 end
                 
 %                 obj.results_publisher.generate_html();
 %                 
-%                 if mod(i,obj.results_frequency) == 0
+%                 if mod(i,obj.parameters.dataset.results_frequency) == 0
 %                     obj.results_publisher.update_home();
 %                     obj.results_publisher.generate_fullresultshtml();
 %                 end
