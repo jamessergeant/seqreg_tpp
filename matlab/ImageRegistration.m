@@ -68,6 +68,7 @@ classdef ImageRegistration < handle
         gpu_normxcorr2
         GPU
         block_size_num_steps
+        block_size1
         gpu_sad2
         kernel_path
         
@@ -88,7 +89,7 @@ classdef ImageRegistration < handle
             % set flags
             obj.images_unset = true;
             
-            obj.load_gpu();
+            obj.gpu_load();
             
             obj.load_model();
             
@@ -237,35 +238,36 @@ classdef ImageRegistration < handle
 
         function parseInput(obj,in_args)
            p = inputParser;
-
+           p.PartialMatching = false;
+           p.CaseSensitive = false;
            % paths
-           addOptional(p,'kernel_path','/home/james/co/SeqSLAM_GPU',@ischar);
-           addOptional(p,'cnn_path','/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/',@ischar);
-           addOptional(p,'network','grey_def.prototxt',@ischar);
-           addOptional(p,'network_col','colour_def.prototxt',@ischar);
-           addOptional(p,'weights','grey_weights.caffemodel',@ischar);
-           addOptional(p,'weights_col','colour_weights.caffemodel',@ischar);
+           addParameter(p,'kernel_path','/home/james/co/SeqSLAM_GPU',@ischar);
+           addParameter(p,'cnn_path','/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/',@ischar);
+           addParameter(p,'network','grey_def.prototxt',@ischar);
+           addParameter(p,'network_col','colour_def.prototxt',@ischar);
+           addParameter(p,'weights','grey_weights.caffemodel',@ischar);
+           addParameter(p,'weights_col','colour_weights.caffemodel',@ischar);
 
            % flags
-           addOptional(p,'visuals',false,@isbool);
+           addParameter(p,'visuals',false,@islogical);
 
            % SeqReg Parameters
-           addOptional(p,'step_size',20,@isnumeric);
-           addOptional(p,'seq_len',100,@isnumeric);
-           addOptional(p,'search_fract',0.4,@isnumeric);
-           addOptional(p,'border',0.1,@isnumeric);
-           addOptional(p,'num_steps',5,@isnumeric);
-           addOptional(p,'trajectory_mode',0,@isnumeric);
-           addOptional(p,'random_scale',0.2,@isnumeric);
-           addOptional(p,'ps',20,@isnumeric);
+           addParameter(p,'step_size',20,@isnumeric);
+           addParameter(p,'seq_len',100,@isnumeric);
+           addParameter(p,'search_fract',0.4,@isnumeric);
+           addParameter(p,'border',0.1,@isnumeric);
+           addParameter(p,'num_steps',5,@isnumeric);
+           addParameter(p,'trajectory_mode',0,@isnumeric);
+           addParameter(p,'random_scale',0.2,@isnumeric);
+           addParameter(p,'ps',20,@isnumeric);
 
            % CNN parameters
-           addOptional(p,'cnn_window',0.02,@isnumeric);
-           addOptional(p,'num_cnn_features',1000,@isnumeric);           
-
+           addParameter(p,'cnn_window',0.02,@isnumeric);
+           addParameter(p,'num_cnn_features',1000,@isnumeric);           
+           
            parse(p,in_args{:});
            
-           fields = fieldnames(p.Results);
+           fields = fieldnames(p.Results); 
            
            for i = 1:numel(fields)
                obj.(fields{i}) = p.Results.(fields{i});
@@ -285,12 +287,26 @@ classdef ImageRegistration < handle
                     break;
                 end
             end
+            
+            obj.gpu_processing = false; % currently experimental, force off
 
             if obj.gpu_processing
+                
                 ptx_path = [obj.kernel_path '/SeqSLAM_kernel.ptx'];
                 cu_path = [obj.kernel_path '/SeqSLAM_kernel.cu'];
+            
+                obj.block_size1 = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
+                obj.block_size_num_steps = floor(sqrt(obj.GPU.MaxThreadsPerBlock / obj.num_steps));  
 
-                obj.block_size = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
+                obj.gpu_trajshift = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z19trajectory_shiftingPKfPfPKiS3_ii');
+                obj.gpu_trajshift.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
+
+                obj.gpu_normxcorr2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10normXcorr2PKfPfS0_S0_S0_iii');
+                obj.gpu_normxcorr2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
+
+                obj.gpu_sad2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z4sad2PKfPfS0_Piiii');
+    %             obj.gpu_sad2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z9sad2_fastPfS_S_Piiii');
+                obj.gpu_sad2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
 
                 wait(obj.GPU);
 
@@ -988,9 +1004,9 @@ classdef ImageRegistration < handle
             if ~isempty(obj.weights) && ~isempty(obj.network)
 
                 disp('Loading caffe model...')
-
+                
                 try
-                    obj.model = caffe.Net([obj.cnn_path obj.network],[obj.cnn_path obj.weights],'test');
+                    obj.model = caffe.Net([obj.cnn_path '/' obj.network],[obj.cnn_path '/' obj.weights],'test');
                 catch
                     disp('Model not loaded.')
                 end
@@ -1002,7 +1018,7 @@ classdef ImageRegistration < handle
                 disp('Loading caffe model...')
 
                 try
-                    obj.model_col = caffe.Net([obj.cnn_path obj.network_col],[obj.cnn_path obj.weights_col],'test');
+                    obj.model_col = caffe.Net([obj.cnn_path '/' obj.network_col],[obj.cnn_path '/' obj.weights_col],'test');
                 catch
                     disp('Model not loaded.')
                 end
@@ -1040,6 +1056,9 @@ classdef ImageRegistration < handle
                 obj.model.forward_prefilled();
 
                 im1_conv1 = obj.model.blobs('conv1').get_data();
+                
+                im1_pad = obj.model.layers('conv1_g').params(1).shape;
+                im1_pad = floor(im1_pad(1) / 2);
 
             else
                 std_ = reshape([std2(im1_data(:,:,1)) std2(im1_data(:,:,2)) std2(im1_data(:,:,3))],[1 1 3]);
@@ -1061,6 +1080,9 @@ classdef ImageRegistration < handle
                 obj.model_col.forward_prefilled();
 
                 im1_conv1 = obj.model_col.blobs('conv1').get_data();
+                
+                im1_pad = obj.model_col.layers('conv1').params(1).shape;
+                im1_pad = floor(im1_pad(1) / 2);
 
             end
 
@@ -1080,6 +1102,9 @@ classdef ImageRegistration < handle
                 obj.model.forward_prefilled();
 
                 im2_conv1 = obj.model.blobs('conv1').get_data();
+                
+                im2_pad = obj.model.layers('conv1_g').params(1).shape;
+                im2_pad = floor(im2_pad(1) / 2);
 
             else
 
@@ -1101,6 +1126,9 @@ classdef ImageRegistration < handle
                 obj.model_col.forward_prefilled();
 
                 im2_conv1 = obj.model_col.blobs('conv1').get_data();
+                
+                im2_pad = obj.model_col.layers('conv1').params(1).shape;
+                im2_pad = floor(im2_pad(1) / 2);
 
             end
 
@@ -1150,11 +1178,10 @@ classdef ImageRegistration < handle
 
             % Retrieve locations of corresponding points for each image.
 
-            % +5 due to kernel size of conv1 (will need to be changed if using
-            % deeper layers)
-            % TODO: Extract kernel size from caffe model
-            obj.movingPoints = validPtsOriginal(indexPairs(:,1),:) + 5; 
-            obj.fixedPoints = validPtsDistorted(indexPairs(:,2),:) + 5;
+            % padding due to reduced size of feature map compared to input
+            % image
+            obj.movingPoints = validPtsOriginal(indexPairs(:,1),:) + im1_pad; 
+            obj.fixedPoints = validPtsDistorted(indexPairs(:,2),:) + im2_pad;
 
         end % end cnn
         
