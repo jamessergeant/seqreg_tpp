@@ -90,12 +90,12 @@ classdef ImagePair < handle
         function parseInput(obj,in_args)
            p = inputParser;
 
-           addOptional(p,'nps',5,@isnumeric);
-           addOptional(p,'minstd',0.1,@isnumeric);
-           addOptional(p,'patch_norm',false,@isbool);
-           addOptional(p,'kernel_path','/home/james/co/SeqSLAM_GPU',@isstr);
-           addOptional(p,'maxdim',400,@isnumeric);
-           addOptional(p,'visuals',false,@isbool);
+           addParameter(p,'nps',5,@isnumeric);
+           addParameter(p,'minstd',0.1,@isnumeric);
+           addParameter(p,'patch_norm',false,@islogical);
+           addParameter(p,'kernel_path','/home/james/co/SeqSLAM_GPU',@isstr);
+           addParameter(p,'maxdim',400,@isnumeric);
+           addParameter(p,'visuals',false,@islogical);
 
            parse(p,in_args{:});
 
@@ -127,7 +127,10 @@ classdef ImagePair < handle
                 obj.block_size = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
 
                 obj.gpu_locnorm = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10local_normPKfPfiiif');
-                obj.gpu_locnorm.ThreadBlockSize = [obj.block_size obj.block_size];
+                obj.gpu_locnorm.ThreadBlockSize = [obj.block_size obj.block_size];         
+
+%                 obj.gpu_rgb2gray = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z18bgr_to_gray_kernelPKhPfiiii');
+%                 obj.gpu_rgb2gray.ThreadBlockSize = [obj.block_size1 obj.block_size1];
 
                 wait(obj.GPU);
 
