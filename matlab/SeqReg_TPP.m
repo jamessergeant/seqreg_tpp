@@ -1,5 +1,5 @@
 classdef SeqReg_TPP < handle
-    %NASAPIPELINE Summary of this class goes here
+    % SEQREG_TPP Summary of this class goes here
     %   Detailed explanation goes here
 %%
     properties
@@ -29,12 +29,12 @@ classdef SeqReg_TPP < handle
     methods
 
 %%
-        function obj = NASApipeline(varargin)
-        % NASApipeline constructor
+        function obj = SeqReg_TPP(varargin)
+        % SeqReg_TPP constructor
 
             obj.init();
 
-        end % end NASApipeline
+        end % end SeqReg_TPP
         
         function init(obj)
         % initialise the object, can be used to reinitialise when reloading
@@ -52,6 +52,7 @@ classdef SeqReg_TPP < handle
             obj.image_pair = ImagePair(in_args{:});
             
             obj.test_cases = load([fileparts(mfilename('fullpath')) '/test_cases.mat']);
+            obj.test_cases = obj.test_cases.test_cases;
 
         end % end init
         
@@ -271,8 +272,8 @@ classdef SeqReg_TPP < handle
         % save the object to backup results
 
             d = clock;
-            nasa = obj; %#ok<NASGU>
-            save(sprintf('%s/nasa-%i%02i%02i.mat',obj.save_dir,d(1),d(2),d(3)),'nasa');
+            seqreg_tpp = obj; %#ok<NASGU>
+            save(sprintf('%s/seqreg_tpp-%i%02i%02i.mat',obj.save_dir,d(1),d(2),d(3)),'seqreg_tpp');
 
         end
         
