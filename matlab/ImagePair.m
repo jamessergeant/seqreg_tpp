@@ -127,10 +127,7 @@ classdef ImagePair < handle
                 obj.block_size = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
 
                 obj.gpu_locnorm = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10local_normPKfPfiiif');
-                obj.gpu_locnorm.ThreadBlockSize = [obj.block_size obj.block_size];         
-
-%                 obj.gpu_rgb2gray = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z18bgr_to_gray_kernelPKhPfiiii');
-%                 obj.gpu_rgb2gray.ThreadBlockSize = [obj.block_size1 obj.block_size1];
+                obj.gpu_locnorm.ThreadBlockSize = [obj.block_size obj.block_size];
 
                 wait(obj.GPU);
 

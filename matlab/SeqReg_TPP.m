@@ -1,4 +1,4 @@
-classdef NASApipeline < handle
+classdef SeqReg_TPP < handle
     %NASAPIPELINE Summary of this class goes here
     %   Detailed explanation goes here
 %%

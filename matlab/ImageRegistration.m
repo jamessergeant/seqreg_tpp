@@ -736,8 +736,6 @@ classdef ImageRegistration < handle
 
                         plot(obj.movingPoints(end, 1), obj.movingPoints(end, 2), 'bo', 'MarkerSize', max(1, round(strongest_local_match * 200)), 'LineWidth', 1);
 
-%                         plot(obj.fixedPoints(end, 1), obj.fixedPoints(end, 2), 'gx', 'MarkerSize', 5, 'LineWidth', 2);
-%                         plot( [obj.fixedPoints(end, 1) obj.movingPoints(end, 1) ], [obj.fixedPoints(end, 2) obj.movingPoints(end, 2)], 'r-', 'LineWidth', 1);
 
                     end
 
