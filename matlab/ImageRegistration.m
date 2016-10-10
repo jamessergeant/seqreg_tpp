@@ -59,19 +59,6 @@ classdef ImageRegistration < handle
         seqreg_showallmatches = true
         test_points_used = false
         
-        % GPU Parameters & Flags
-        gpu_processing = false
-        gpu_processing_fail = false
-        gpu_devel_mode = false
-        gpu_trajshift
-        gpu_xchist
-        gpu_normxcorr2
-        GPU
-        block_size_num_steps
-        block_size1
-        gpu_sad2
-        kernel_path
-        
     end
 
     %% PUBLIC METHODS
@@ -88,8 +75,6 @@ classdef ImageRegistration < handle
             
             % set flags
             obj.images_unset = true;
-            
-            obj.gpu_load();
             
             obj.load_model();
             
@@ -241,7 +226,6 @@ classdef ImageRegistration < handle
            p.PartialMatching = false;
            p.CaseSensitive = false;
            % paths
-           addParameter(p,'kernel_path','/home/james/co/SeqSLAM_GPU',@ischar);
            addParameter(p,'cnn_path','/home/james/ros_ws/src/seqreg_tpp/matlab/caffe/',@ischar);
            addParameter(p,'network','grey_def.prototxt',@ischar);
            addParameter(p,'network_col','colour_def.prototxt',@ischar);
@@ -273,45 +257,6 @@ classdef ImageRegistration < handle
                obj.(fields{i}) = p.Results.(fields{i});
            end
            
-        end
-
-        function gpu_load(obj)
-
-            obj.gpu_processing = false;
-
-            for i=1:gpuDeviceCount
-                if parallel.gpu.GPUDevice.isAvailable(i)
-                    obj.GPU = parallel.gpu.GPUDevice.getDevice(i);
-                    obj.gpu_processing = true;
-                    disp([class(obj) ': GPU found!']);
-                    break;
-                end
-            end
-            
-            obj.gpu_processing = false; % currently experimental, force off
-
-            if obj.gpu_processing
-                
-                ptx_path = [obj.kernel_path '/SeqSLAM_kernel.ptx'];
-                cu_path = [obj.kernel_path '/SeqSLAM_kernel.cu'];
-            
-                obj.block_size1 = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
-                obj.block_size_num_steps = floor(sqrt(obj.GPU.MaxThreadsPerBlock / obj.num_steps));  
-
-                obj.gpu_trajshift = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z19trajectory_shiftingPKfPfPKiS3_ii');
-                obj.gpu_trajshift.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
-
-                obj.gpu_normxcorr2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z10normXcorr2PKfPfS0_S0_S0_iii');
-                obj.gpu_normxcorr2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
-
-                obj.gpu_sad2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z4sad2PKfPfS0_Piiii');
-    %             obj.gpu_sad2 = parallel.gpu.CUDAKernel(ptx_path,cu_path,'_Z9sad2_fastPfS_S_Piiii');
-                obj.gpu_sad2.ThreadBlockSize = [obj.block_size_num_steps obj.block_size_num_steps,obj.num_steps];
-
-                wait(obj.GPU);
-
-            end
-
         end
 
         function results = get_results(obj)
@@ -583,17 +528,6 @@ classdef ImageRegistration < handle
                 yrange = randi([round(obj.border * imsz(1)),round((1-obj.border) * imsz(1))],1,round((imsz(1) - obj.curr_seq_len) / obj.curr_step_size));
             end
 
-            if obj.gpu_processing || obj.gpu_devel_mode
-                xchist_gpu = zeros([imsz(1),imsz(2)*obj.num_steps],'single','gpuArray');
-                gpu_xchist_cubed = zeros([imsz(1),imsz(2)*obj.num_steps],'single','gpuArray');
-                im2_regions = zeros([obj.curr_ps*2+1,(obj.curr_ps*2+1)*obj.num_steps],'single','gpuArray');
-                im2_region_mean = zeros(obj.num_steps,'single','gpuArray');
-                im2_region_std = zeros(obj.num_steps,'single','gpuArray');
-                im1_padded = gpuArray(single(padarray(obj.im1,[obj.curr_ps obj.curr_ps])));
-                im_out = zeros([imsz(1)+2*obj.curr_ps, (imsz(2)+2*obj.curr_ps)*obj.num_steps],'single','gpuArray');
-                im_out_sized = zeros([imsz(1)+2*obj.curr_ps, imsz(2)+2*obj.curr_ps],'single','gpuArray');
-            end
-
             % loop through xrange, yrange
             for startx = xrange
 
@@ -697,125 +631,39 @@ classdef ImageRegistration < handle
                         continue
                     end
 
-                    if obj.gpu_processing || obj.gpu_devel_mode
-                        xchist_gpu(:) = 0;
-                        gpu_xchist_cubed(:) = 0;
-                        im2_regions(:) = 0;
-                        im2_region_mean(:) = 0;
-                        im2_region_std(:) = 0;
-                        im_out(:) = 0;
-                        im_out_sized(:) = 0;
-                    end
+                    % Create the difference matrices for each step along the trajectory
+                    xchist = zeros(imsz_query(1),imsz_query(2),obj.num_steps);
 
-                    if obj.gpu_devel_mode
+                    for z = 1:size(ppos,1)
 
-                        im2_regions = zeros(obj.curr_ps*2+1,(obj.curr_ps*2+1)*size(ppos,1));
+                        % extract region around point on trajectory
 
-                        im2_region_mean = zeros(obj.num_steps);
-                        im2_region_std = zeros(obj.num_steps);
+                        p2 = obj.im2(ppos(z, 2)-obj.curr_ps:ppos(z, 2)+obj.curr_ps, ppos(z, 1)-obj.curr_ps:ppos(z, 1)+obj.curr_ps);
 
-                        for z = 1:size(ppos,1)
-
-                            % extract region around point on trajectory
-                            p2 = obj.im2(ppos(z, 2)-obj.curr_ps:ppos(z, 2)+obj.curr_ps, ppos(z, 1)-obj.curr_ps:ppos(z, 1)+obj.curr_ps);
-
-                            if all(p2 == p2(1))
-                                p2(1, 1) = p2(1, 1) + 1;
-                            end
-
-                            im2_region_mean(z) = single(mean(p2(:)));
-                            im2_region_std(z) = single(std(p2(:)));
-
-                            im2_regions(:,(z-1)*(obj.curr_ps*2+1)+1:z*(obj.curr_ps*2+1)) = single(p2);
-
+                        % ensure std != 0?
+                        if all(p2 == p2(1))
+                            p2(1, 1) = p2(1, 1) + 1;
                         end
 
-                        height = imsz(1) + 2*obj.curr_ps;
-                        width = imsz(2) + 2*obj.curr_ps;
+                        % Old way doing comparison against whole image
+                        if obj.search_fract == 1
+                            % compute correlations between region from im2 and entire im1x
+                            xc1 = normxcorr2(p2, obj.im1);
 
-                        obj.gpu_normxcorr2.GridSize = [ceil(height / obj.block_size_num_steps),ceil(width / obj.block_size_num_steps)];
+                            % crop off edges of correlation image to original size
+                            xc1 = xc1(obj.curr_ps + 1: imsz_query(1) + obj.curr_ps, obj.curr_ps + 1: imsz_query(2) + obj.curr_ps);
 
-                        im_out = feval(obj.gpu_normxcorr2,im1_padded,im_out,im2_regions,im2_region_mean,im2_region_std,width,height,obj.curr_ps);
-
-                        for i=1:obj.num_steps
-                            xchist_gpu(:,(i-1)*imsz(2)+1:i*imsz(2)) = im_out(obj.curr_ps+1:height-obj.curr_ps,(i-1)*width+obj.curr_ps+1:i*width-obj.curr_ps);
-                        end
-
-                    elseif obj.gpu_processing_fail % GPU SAD implementation
-
-                        im2_regions = zeros(obj.curr_ps*2+1,(obj.curr_ps*2+1)*obj.num_steps);
-
-                        for z = 1:obj.num_steps
-
-                            % extract region around point on trajectory
-
-                            p2 = obj.im2(ppos(z, 2)-obj.curr_ps:ppos(z, 2)+obj.curr_ps, ppos(z, 1)-obj.curr_ps:ppos(z, 1)+obj.curr_ps);
-
-                            if all(p2 == p2(1))
-                                p2(1, 1) = p2(1, 1) + 1;
-                            end
-
-                            im2_regions(:,(z-1)*(obj.curr_ps*2+1)+1:z*(obj.curr_ps*2+1)) = single(p2);
-
-                        end
-
-                        height = imsz(1) + 2*obj.curr_ps;
-                        width = imsz(2) + 2*obj.curr_ps;
-
-                        offsets = ppos - repmat([startx starty],obj.num_steps,1);
-                        offsets = offsets';
-
-                        obj.gpu_sad2.GridSize = [ceil(height / obj.block_size_num_steps),ceil(width / obj.block_size_num_steps)];
-
-                        max(im1_padded(:))
-                        min(im1_padded(:))
-                        im_out_sized = feval(obj.gpu_sad2,im1_padded,im_out_sized,im2_regions,offsets(:),width,height,obj.curr_ps);
-                        wait(obj.GPU)
-                        max(im_out_sized(:))
-                        temp = gather(im_out_sized);
-                        max(temp(:))
-                        xchist = temp(obj.curr_ps+1:height-obj.curr_ps,obj.curr_ps+1:width-obj.curr_ps);
-                        max(xchist(:))
-%                         xchist = xchist - max(xchist(:));
-%                         max(xchist(:))
-
-                    else
-
-                        % Create the difference matrices for each step along the trajectory
-                        xchist = zeros(imsz_query(1),imsz_query(2),obj.num_steps);
-
-                        for z = 1:size(ppos,1)
-
-                            % extract region around point on trajectory
-
-                            p2 = obj.im2(ppos(z, 2)-obj.curr_ps:ppos(z, 2)+obj.curr_ps, ppos(z, 1)-obj.curr_ps:ppos(z, 1)+obj.curr_ps);
-
-                            % ensure std != 0?
-                            if all(p2 == p2(1))
-                                p2(1, 1) = p2(1, 1) + 1;
-                            end
-
-                            % Old way doing comparison against whole image
-                            if obj.search_fract == 1
-                                % compute correlations between region from im2 and entire im1x
-                                xc1 = normxcorr2(p2, obj.im1);
-
-                                % crop off edges of correlation image to original size
-                                xc1 = xc1(obj.curr_ps + 1: imsz_query(1) + obj.curr_ps, obj.curr_ps + 1: imsz_query(2) + obj.curr_ps);
-
-                                % save correlation image
-                                xchist(:, :, z) = xc1;
-                            else
-                                % New way doing in local region
-                                xcsumrng = (max(1, yp1 - corr_rangex):min(imsz(1), yp1 + corr_rangex) );
-                                ycsumrng = (max(1, xp1 - corr_rangey):min(imsz(2), xp1 + corr_rangey) );
-                                xc_temp = normxcorr2(p2, obj.im1(xcsumrng, ycsumrng));
-                                xc2 = zeros(imsz_query);
-                                xc_temp = xc_temp(obj.curr_ps+1:size(xc_temp,1)-obj.curr_ps,obj.curr_ps+1:size(xc_temp,2)-obj.curr_ps);
-                                xc2([0:size(xc_temp,1) - 1] + xcsumrng(1), [0:size(xc_temp,2) - 1] + ycsumrng(1)) = xc_temp;
-                                xchist(:, :, z) = xc2;
-                            end
-
+                            % save correlation image
+                            xchist(:, :, z) = xc1;
+                        else
+                            % New way doing in local region
+                            xcsumrng = (max(1, yp1 - corr_rangex):min(imsz(1), yp1 + corr_rangex) );
+                            ycsumrng = (max(1, xp1 - corr_rangey):min(imsz(2), xp1 + corr_rangey) );
+                            xc_temp = normxcorr2(p2, obj.im1(xcsumrng, ycsumrng));
+                            xc2 = zeros(imsz_query);
+                            xc_temp = xc_temp(obj.curr_ps+1:size(xc_temp,1)-obj.curr_ps,obj.curr_ps+1:size(xc_temp,2)-obj.curr_ps);
+                            xc2([0:size(xc_temp,1) - 1] + xcsumrng(1), [0:size(xc_temp,2) - 1] + ycsumrng(1)) = xc_temp;
+                            xchist(:, :, z) = xc2;
                         end
 
                     end
@@ -824,50 +672,30 @@ classdef ImageRegistration < handle
                         ppos = ppos_unscaled;
 
                     end
-
-                    if obj.gpu_devel_mode
-
-                        obj.gpu_trajshift.GridSize = [ceil(imsz(1) / obj.block_size_num_steps),ceil(imsz(2) / obj.block_size_num_steps)];
-
-                        step_x = int32(ppos(:,1) - xp1);
-
-                        step_y = int32(ppos(:,2) - yp1);
-
-                        gpu_xchist_cubed = feval(obj.gpu_trajshift,xchist_gpu.^3,gpu_xchist_cubed,step_x,step_y,imsz(2),imsz(1));
-
-                        xcsum = gather(gpu_xchist_cubed) / obj.num_steps;
-
-                    elseif obj.gpu_processing_fail
-
-                        xcsum = xchist;
-
-                    else
 %
-                        % Stack the images
-                        xcsum = zeros(imsz_query);
+                    % Stack the images
+                    xcsum = zeros(imsz_query);
 
-                        for z = 1:size(ppos,1)
+                    for z = 1:size(ppos,1)
 
-                            xoffset = -(ppos(z, 1) - xp1);
-                            yoffset = -(ppos(z, 2) - yp1);
+                        xoffset = -(ppos(z, 1) - xp1);
+                        yoffset = -(ppos(z, 2) - yp1);
 
-                            x1start = max(1, xoffset + 1);
-                            x1finish = min(imsz_query(2) + xoffset, imsz_query(2));
-                            y1start = max(1, yoffset + 1);
-                            y1finish = min(imsz_query(1) + yoffset, imsz_query(1));
+                        x1start = max(1, xoffset + 1);
+                        x1finish = min(imsz_query(2) + xoffset, imsz_query(2));
+                        y1start = max(1, yoffset + 1);
+                        y1finish = min(imsz_query(1) + yoffset, imsz_query(1));
 
-                            x2start = max(1, -xoffset + 1);
-                            x2finish = min(imsz_query(2) - xoffset, imsz_query(2));
-                            y2start = max(1, -yoffset + 1);
-                            y2finish = min(imsz_query(1) - yoffset, imsz_query(1));
+                        x2start = max(1, -xoffset + 1);
+                        x2finish = min(imsz_query(2) - xoffset, imsz_query(2));
+                        y2start = max(1, -yoffset + 1);
+                        y2finish = min(imsz_query(1) - yoffset, imsz_query(1));
 
-                            xcsum(y1start:y1finish, x1start:x1finish) = xcsum(y1start:y1finish, x1start:x1finish) + (xchist(y2start:y2finish, x2start:x2finish, z).^3);
-
-                        end
-
-                        xcsum = xcsum / obj.num_steps;
+                        xcsum(y1start:y1finish, x1start:x1finish) = xcsum(y1start:y1finish, x1start:x1finish) + (xchist(y2start:y2finish, x2start:x2finish, z).^3);
 
                     end
+
+                    xcsum = xcsum / obj.num_steps;
 
                     abs_xcsum = abs(xcsum);
 
