@@ -93,7 +93,7 @@ classdef ImagePair < handle
            addParameter(p,'nps',5,@isnumeric);
            addParameter(p,'minstd',0.1,@isnumeric);
            addParameter(p,'patch_norm',false,@islogical);
-           addParameter(p,'kernel_path','/home/james/co/SeqSLAM_GPU',@isstr);
+           addParameter(p,'kernel_path',[fileparts(mfilename('fullpath')) '/gpu'],@isstr);
            addParameter(p,'maxdim',400,@isnumeric);
            addParameter(p,'visuals',false,@islogical);
 
@@ -121,8 +121,8 @@ classdef ImagePair < handle
             end
 
             if obj.gpu_processing
-                ptx_path = [obj.kernel_path '/SeqSLAM_kernel.ptx'];
-                cu_path = [obj.kernel_path '/SeqSLAM_kernel.cu'];
+                ptx_path = [obj.kernel_path '/locnorm_gpu.ptx'];
+                cu_path = [obj.kernel_path '/locnorm_gpu.cu'];
 
                 obj.block_size = floor(sqrt(obj.GPU.MaxThreadsPerBlock));
 
