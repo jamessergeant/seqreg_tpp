@@ -18,7 +18,7 @@ seqreq.test_dataset();
 ```
 
 ## Other Images
-Various input parameter pairs can be provided to both ImagePair() and ImageRegistration().
+Various input parameter pairs can be provided to both ImagePair() and ImageRegistration(), see next section.
 ```
 image_pair = ImagePair();
 image_pair.set_images(image1,image2,relative_scale);
@@ -26,6 +26,9 @@ registrator = ImageRegistration()
 % methods include 'seqreg','cnn','surf'
 results = registrator('method',image_pair);
 ```
+
+## Parameters
+Parameters can be set in `seqreq.parameters`.
 
 ## Robot Experiments
 

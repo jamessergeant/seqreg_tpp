@@ -51,8 +51,8 @@ classdef SeqReg_TPP < handle
             in_args = struct2optarg(obj.parameters.image_pair);
             obj.image_pair = ImagePair(in_args{:});
             
-            obj.test_cases = load([fileparts(mfilename('fullpath')) '/test_cases.mat']);
-            obj.test_cases = obj.test_cases.test_cases;
+            obj.test_cases = load([fileparts(mfilename('fullpath')) '/test_cases.mat'], 'test_cases');
+            obj.parameters = load([fileparts(mfilename('fullpath')) '/parameters.mat'], 'parameters');
 
         end % end init
         
