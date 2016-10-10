@@ -50,6 +50,8 @@ classdef NASApipeline < handle
             
             in_args = struct2optarg(obj.parameters.image_pair);
             obj.image_pair = ImagePair(in_args{:});
+            
+            obj.test_cases = load([fileparts(mfilename('fullpath')) '/test_cases.mat']);
 
         end % end init
         
@@ -77,7 +79,7 @@ classdef NASApipeline < handle
             
             [secondary_image,~] = readImage(req.SecondaryImage);
                                     
-            obj.image_pair = ImagePair(initial_image,secondary_image,req.Scales.Data');
+            obj.image_pair.set_images(initial_image,secondary_image,req.Scales.Data');
             
             fprintf('Initial registration with SeqSLAM to estimate new pose\n');
             
