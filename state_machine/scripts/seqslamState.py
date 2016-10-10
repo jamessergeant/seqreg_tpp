@@ -1,7 +1,7 @@
 import rospy
 from rospy import ServiceException, ROSException
 import smach
-from seqslam_tpp.srv import MATLABSrv,MATLABSrvRequest,MATLABSrvResponse
+from seqreg_tpp.srv import MATLABSrv,MATLABSrvRequest,MATLABSrvResponse
 from std_msgs.msg import Float32MultiArray, Empty
 from sensor_msgs.msg import Image
 
@@ -15,7 +15,7 @@ class SeqSLAMState(smach.State):
 
     count = 0
 
-    def __init__(self, action='initial_position',method='ros_seqslam',save_msg=True):
+    def __init__(self, action='initial_position',method='ros_seqreg',save_msg=True):
         smach.State.__init__(self, input_keys=['data'], output_keys=['data'],
                              outcomes=['succeeded','failed','aborted'])
 
@@ -24,9 +24,9 @@ class SeqSLAMState(smach.State):
         self.save_msg = save_msg
 
         if self.action == 'initial_position':
-            srv_name = '/seqslam_tpp/seqslam'
+            srv_name = '/seqreg_tpp/seqreg'
         elif self.action == 'servoing':
-            srv_name = '/seqslam_tpp/seqslam_servo'
+            srv_name = '/seqreg_tpp/seqreg_servo'
         rospy.loginfo('Waiting for ' + srv_name + ' service to come up ...')
 
         try:

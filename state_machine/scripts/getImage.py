@@ -1,7 +1,7 @@
 import rospy
 from rospy import ServiceException, ROSException
 import smach
-from seqslam_tpp.srv import UserSelection,UserSelectionRequest
+from seqreg_tpp.srv import UserSelection,UserSelectionRequest
 
 import cv_bridge
 
@@ -19,7 +19,7 @@ class GetImage(smach.State):
         self.action = action
         self.tag = tag
         self.cv_bridge = cv_bridge.CvBridge()
-        srv_name = '/seqslam_tpp/get_image'
+        srv_name = '/seqreg_tpp/get_image'
 
         try:
             rospy.wait_for_service(srv_name, timeout=1)

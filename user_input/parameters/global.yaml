@@ -1,6 +1,6 @@
-seqslam_tpp:
+seqreg_tpp:
     {'robot': 'baxter',
-    'method': 'ros_seqslam',
+    'method': 'ros_seqreg',
     # 'image_topic': '/cameras/left_hand_camera/image',
     'image_topic': '/realsense/rgb/image_raw',
     # 'image_topic': '/image_raw',

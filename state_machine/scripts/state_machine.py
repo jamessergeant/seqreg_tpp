@@ -17,7 +17,7 @@ from userInputRequest import UserInputRequest
 from tf.transformations import quaternion_from_euler
 from getImage import GetImage
 from waitState import WaitState
-from seqslamState import SeqSLAMState
+from seqregState import SeqSLAMState
 from getRobotPose import GetRobotPose
 from calcScales import CalcScales
 from calcMovement import CalcMovement
@@ -43,21 +43,21 @@ def paramToPose(inputInfo=None):
 # =============================================================================
 if __name__ == '__main__':
 
-    rospy.init_node('seqslam_tpp_state_machine')
+    rospy.init_node('seqreg_tpp_state_machine')
 
-    which_robot = rospy.get_param('/seqslam_tpp/robot','baxter')
+    which_robot = rospy.get_param('/seqreg_tpp/robot','baxter')
 
-    robot_information = rospy.get_param('/seqslam_tpp/'+ which_robot)
+    robot_information = rospy.get_param('/seqreg_tpp/'+ which_robot)
 
-    limits = rospy.get_param('/seqslam_tpp/limits')
+    limits = rospy.get_param('/seqreg_tpp/limits')
 
     initial_pose = paramToPose(robot_information['initial_pose'])
     secondary_pose = paramToPose(robot_information['secondary_pose'])
     frame_id = robot_information['frame_id']
     sample_distance = robot_information['sample_distance']
     sample_direction = robot_information['sample_direction']
-    camera_information = rospy.get_param('/seqslam_tpp/' + rospy.get_param('/seqslam_tpp/camera'))
-    method = rospy.get_param('/seqslam_tpp/method')
+    camera_information = rospy.get_param('/seqreg_tpp/' + rospy.get_param('/seqreg_tpp/camera'))
+    method = rospy.get_param('/seqreg_tpp/method')
 
     initial_noise = (robot_information['initial_noise']['x'],robot_information['initial_noise']['y'],robot_information['initial_noise']['z'])
     secondary_noise = (robot_information['secondary_noise']['x'],robot_information['secondary_noise']['y'],robot_information['secondary_noise']['z'])
@@ -160,12 +160,12 @@ if __name__ == '__main__':
                             'aborted':'abort_next_trial'})
 
         sm_positioning.add('calc_scales',
-                CalcScales(), transitions={'succeeded':'seqslam','failed':'repeat',
+                CalcScales(), transitions={'succeeded':'seqreg','failed':'repeat',
                                 'aborted':'abort_next_trial'})
 
-        sm_positioning.add('seqslam', SeqSLAMState(method=method),
+        sm_positioning.add('seqreg', SeqSLAMState(method=method),
                 transitions={'succeeded': 'check_limits',
-                            'failed':'seqslam',
+                            'failed':'seqreg',
                             'aborted':'abort_next_trial'})
 
         sm_positioning.add('check_limits', CheckLimits(),
