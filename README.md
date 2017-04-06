@@ -9,7 +9,7 @@ J. Sergeant, G. Doran, D. R. Thompson, C. Lehnert, A. Allwood, B. Upcroft, M. Mi
 J. Sergeant, G. Doran, D. R. Thompson, C. Lehnert, A. Allwood, B. Upcroft, M. Milford, "Appearance-Invariant Surface Registration for Robot Positioning," International Conference on Robotics and Automation 2017 [under review], 2017.
 
 ## Multimodal Dataset
-The associated Multimodal Rock Image Dataset can be found [here](https://cloudstor.aarnet.edu.au/plus/index.php/s/ep01HdwkvWCQf6b). After uncompressing to desired location, ensure to specify the path to the dataset when initialising the SeqReg_TPP object in MATLAB. To run the test for all test casees in the dataset:
+The associated Multimodal Rock Image Dataset can be found [here](https://cloudstor.aarnet.edu.au/plus/index.php/s/nX1rhsKMehp1h6N). After uncompressing to desired location, ensure to specify the path to the dataset when initialising the SeqReg_TPP object in MATLAB. To run the test for all test casees in the dataset:
 
 ```
 seqreg = SeqReq_TPP();
