@@ -17,7 +17,7 @@ from userInputRequest import UserInputRequest
 from tf.transformations import quaternion_from_euler
 from getImage import GetImage
 from waitState import WaitState
-from seqregState import SeqSLAMState
+from seqslamState import SeqSLAMState
 from getRobotPose import GetRobotPose
 from calcScales import CalcScales
 from calcMovement import CalcMovement

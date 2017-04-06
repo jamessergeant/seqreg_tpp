@@ -1,6 +1,5 @@
 import rospy
 import smach
-from moveit_lib.srv import get_pose,get_poseRequest
 import baxter_interface
 
 import numpy as np

@@ -45,8 +45,9 @@ class GetRobotPose(smach.State):
                 return 'failed'
 
             request = get_poseRequest()
-            request.move_group.data = self.movegroup
+            request.move_group.data = self.movegroup + '_cartesian'
             request.frame_id.data = self.frame_id
+            rospy.logwarn(self.frame_id)
             response = self.service.call(request)
             rospy.loginfo(response.pose.pose)
 

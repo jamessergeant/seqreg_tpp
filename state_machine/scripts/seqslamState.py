@@ -1,7 +1,7 @@
 import rospy
 from rospy import ServiceException, ROSException
 import smach
-from seqreg_tpp.srv import MATLABSrv,MATLABSrvRequest,MATLABSrvResponse
+from user_input.srv import MATLABSrv,MATLABSrvRequest,MATLABSrvResponse
 from std_msgs.msg import Float32MultiArray, Empty
 from sensor_msgs.msg import Image
 

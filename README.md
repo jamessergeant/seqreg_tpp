@@ -56,7 +56,7 @@ Various robot configuration parameters can be set in state_machine/parameters/gl
 ### State Machine
 Start the state machine with 'roslaunch state_machine_seqreg state_machine'
 
-1. Maniputor will move to an initial position.
+1. Manipulator will move to an initial position.
 1. Operator required to select a region of interest on the surface in the image.
 1. Manipulator moves to secondary position.
 1. Image registration.

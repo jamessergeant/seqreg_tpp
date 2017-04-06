@@ -24,6 +24,7 @@ classdef SeqReg_TPP < handle
         save_gif = true;
         open_gif = false;
         parameters
+        ros_results
     end
 %%
     methods
@@ -43,6 +44,10 @@ classdef SeqReg_TPP < handle
                         
             obj.results_publisher = ResultsPublisher(obj);
             
+            obj.test_cases = load([fileparts(mfilename('fullpath')) '/test_cases.mat'], 'test_cases');
+            obj.parameters = load([fileparts(mfilename('fullpath')) '/parameters.mat'], 'parameters');
+            obj.parameters = obj.parameters.parameters;
+            
             in_args = struct2optarg(obj.parameters.image_registration);
             obj.registrator = ImageRegistration(in_args{:});
             
@@ -50,9 +55,6 @@ classdef SeqReg_TPP < handle
             
             in_args = struct2optarg(obj.parameters.image_pair);
             obj.image_pair = ImagePair(in_args{:});
-            
-            obj.test_cases = load([fileparts(mfilename('fullpath')) '/test_cases.mat'], 'test_cases');
-            obj.parameters = load([fileparts(mfilename('fullpath')) '/parameters.mat'], 'parameters');
 
         end % end init
         
@@ -66,7 +68,7 @@ classdef SeqReg_TPP < handle
             obj.ros_initialised = true;            
             
             obj.seqregSrv = rossvcserver('/seqreg_tpp/seqreg','user_input/MATLABSrv',@obj.seqregCallback);
-            
+                        
         end
         
         % accepts custom srv type
@@ -79,6 +81,8 @@ classdef SeqReg_TPP < handle
             [initial_image,~] = readImage(req.InitialImage);
             
             [secondary_image,~] = readImage(req.SecondaryImage);
+            
+            req.Scales.Data
                                     
             obj.image_pair.set_images(initial_image,secondary_image,req.Scales.Data');
             
@@ -102,10 +106,10 @@ classdef SeqReg_TPP < handle
                     obj.generate_gif(obj.gif_dir, ['ros_' obj.method num2str(obj.trajectory_mode)], ['ros_' obj.method '_' obj.curr_case]);
                 end
 
-                fprintf('Initial Registration\n\tEstimated Scale:\t%0.3f\n\tEstimated Rotation:\t%0.3f\n\tTrans X: %0.3f\n\tTrans Y: %0.3f\n\tPoints Used: %s\n\tFraction Points: %0.3f\n',obj.results.scaleRecovered,obj.results.thetaRecovered,obj.results.tform.T(3,2),obj.results.tform.T(3,1),bool2str(obj.results.min_pts_used),obj.results.fraction_pts_used);
+                fprintf('Initial Registration\n\tEstimated Scale:\t%0.3f\n\tEstimated Rotation:\t%0.3f\n\tTrans X: %0.3f\n\tTrans Y: %0.3f\n\tPoints Used: %s\n\tFraction Points: %0.3f\n',obj.results.scaleRecovered,obj.results.thetaRecovered,obj.results.tform.T(3,2),obj.results.tform.T(3,1),bool2str(obj.results.min_pts_used),obj.results.percentPtsUsed);
 
                 if abs(1 - obj.results.scaleRecovered) < obj.parameters.ros.scale_tolerance && abs(obj.results.thetaRecovered) < obj.parameters.ros.rotation_tolerance %&& obj.results.percentPtsUsed > obj.min_fraction_pts_used && obj.results.min_pts_used
-                    res.Results.Data = [scaleRecovered thetaRecovered obj.tform.T(3,2) obj.tform.T(3,1)];
+                    res.Results.Data = [obj.results.scaleRecovered obj.results.thetaRecovered obj.results.tform.T(3,2) obj.results.tform.T(3,1)];
                     res.Success.Data = true;
                     res.Message.Data = ['Registration with ' req.Method.Data ' succeeded!'];
                     fprintf(['Registration with ' req.Method.Data ' succeeded!\n']);
@@ -124,11 +128,17 @@ classdef SeqReg_TPP < handle
             
             if obj.visuals
                 close all
+                
                 imshowpair(obj.results.im1_registered,obj.results.im2_registered)
             end
             
+            result_struct = struct('request', req, 'response', res, 'results', struct(obj.results));
             
-            obj.ros_results(end + 1) = struct('request', req, 'response', res, 'results', struct(obj.results));
+            if isempty(obj.ros_results)
+                obj.ros_results = result_struct;                
+            else
+                obj.ros_results(end + 1) = result_struct;
+            end
             
             if mod(length(obj.ros_results),obj.parameters.ros.save_frequency) == 0
                 obj.save_prog();

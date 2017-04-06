@@ -141,7 +141,7 @@ classdef ImageRegistration < handle
             %           estimateGeometricTransform
 
             % set current method
-            obj.method = method;  
+            obj.method = method;
             
             % If an ImagePair obj is passed in, load the appropriate images
             % for the method requested
@@ -181,7 +181,7 @@ classdef ImageRegistration < handle
         
             % check if images have been set
             if obj.images_unset
-                results = ImageRegistrationResults();
+                results = ImageRegistrationResult();
                 warning(['Images have not been set. Please either ' ...
                     'use the set_images() method or provide an ' ...
                     'ImagePair object as second argument to the ' ...
@@ -300,6 +300,13 @@ classdef ImageRegistration < handle
                 Tinv  = tform.invert.T;
                 ss = Tinv(2,1);
                 sc = Tinv(1,1);
+                
+                if obj.visuals
+                    
+                    results.im1_registered = imwarp(obj.im1,tform);
+                    results.im2_registered = obj.im2;
+                    
+                end
                 
                 results.scaleRecovered = sqrt(ss*ss + sc*sc);
                 results.thetaRecovered = atan2(ss,sc)*180/pi;

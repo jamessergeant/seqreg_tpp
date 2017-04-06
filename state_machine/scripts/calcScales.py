@@ -1,6 +1,5 @@
 import rospy
 import smach
-from moveit_lib.srv import get_pose,get_poseRequest
 import baxter_interface
 
 import numpy as np
@@ -33,6 +32,7 @@ class CalcScales(smach.State):
 
             rospy.logwarn(userdata['data'].keys())
             rospy.logwarn(userdata['data']['distance_estimate'])
+            rospy.logwarn(position_initial[userdata['data']['sample_direction']])
 
             scales = np.asarray([abs((position_initial[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])/userdata['data']['roi_scale']), abs(position_secondary[userdata['data']['sample_direction']]-userdata['data']['distance_estimate'])])
 

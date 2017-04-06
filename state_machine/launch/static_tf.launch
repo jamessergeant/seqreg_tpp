@@ -44,6 +44,9 @@
 
     <node pkg="tf" type="static_transform_publisher" name="shelf"
         args="$(arg shelf) /base_shelf_pos /shelf 10" />
+        
+    <node pkg="tf" type="static_transform_publisher" name="right_realsense"
+        args="0 0 0 0 0 0 /camera_rgb_frame /right_realsense 100" />
 
     <node pkg="tf" type="static_transform_publisher" name="bin_A"
         args="$(arg bin_A) /shelf /bin_A 10" />

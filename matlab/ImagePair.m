@@ -30,7 +30,7 @@ classdef ImagePair < handle
         im2_unpad_double
     end
 
-    properties(Access = private)
+    properties%(Access = private)
         scales
         gpu_processing
         GPU
@@ -83,9 +83,9 @@ classdef ImagePair < handle
             
         end
 
-    end
-
-    methods(Access = protected)
+%     end
+% 
+%     methods(Access = protected)
 
         function parseInput(obj,in_args)
            p = inputParser;
@@ -161,8 +161,6 @@ classdef ImagePair < handle
             % pre-scale images
             obj.scales = min(obj.scales) ./ obj.scales;
 
-            obj.scales = obj.scales;
-
             obj.im1_fullres_unpad = obj.im1;
             obj.im2_fullres_unpad = obj.im2;
 
@@ -177,9 +175,13 @@ classdef ImagePair < handle
                 % add black padding to match other image size
                 obj.(['im' num2str(i) '_padding']) = [max(0,round((s2(1) - s1(1))/2)), max(0,round((s2(2) - s1(2))/2))];
                 obj.(['im' num2str(i)]) = padarray(obj.(['im' num2str(i)]),obj.(['im' num2str(i) '_padding']));
-
                 obj.(['im' num2str(i)]) = obj.(['im' num2str(i)])(1:s2(1),1:s2(2),:);
-
+            end
+            
+            if obj.visuals
+                close all
+                imshowpair(obj.im1_fullres,obj.im2_fullres,'method','montage')
+                pause
             end
 
             % calculate im1 aspect ratio
